@@ -3,30 +3,29 @@ use std::raw::TraitObject as TORepr;
 
 use super::MetaData;
 
-union Repr<T: Copy> {
+union Trans<T: Copy, U: Copy> {
     t: T,
-    repr: TORepr
+    u: U
 }
 
 unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     type Data = Ptr;
-    type This = T;
 
     #[inline]
-    fn decompose(t: &T) -> (*const u8, Self::Data) {
-        let repr = Repr { t };
+    fn decompose(t: &Self) -> (*const u8, Self::Data) {
+        let repr = Trans { t };
 
         unsafe {
-            let Repr { repr: TORepr { data, vtable } } = repr;
+            let Trans { u: TORepr { data, vtable } } = repr;
 
             (data as _, Ptr(vtable))
         }
     }
 
     #[inline]
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut T {
-        let repr = Repr {
-            repr: TORepr {
+    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
+        let repr = Trans {
+            u: TORepr {
                 data: ptr as _,
                 vtable: data.0
             }
@@ -45,4 +44,25 @@ impl Default for Ptr {
     }
 }
 
-pub struct TraitObject<T: ?Sized>([*const T]);
+trait Trait<T: ?Sized> {}
+
+/**
+ * `TraitObject` represents a trait object generically
+ * 
+ * # Safety
+ * 
+ * The only types that are safe to use with `TraitObject`
+ * are trait objects, using anything else is UB
+ */
+#[repr(transparent)]
+pub struct TraitObject<T: ?Sized>(dyn Trait<T>);
+
+impl<T: ?Sized> TraitObject<T> {
+    pub unsafe fn new(t: &T) -> &Self {
+        Trans { t }.u
+    }
+
+    pub unsafe fn into(&self) -> &T {
+        Trans { t: self }.u
+    }
+}

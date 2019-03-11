@@ -225,16 +225,14 @@ impl_delta! { i8, i16, i32, i64, i128, isize }
 
 pub unsafe trait MetaData {
     type Data: Default + Copy + Eq;
-    type This: ?Sized;
 
-    fn decompose(this: &Self::This) -> (*const u8, Self::Data);
+    fn decompose(this: &Self) -> (*const u8, Self::Data);
 
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self::This;
+    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self;
 }
 
 unsafe impl<T> MetaData for T {
     type Data = ();
-    type This = Self;
 
     #[inline]
     fn decompose(this: &Self) -> (*const u8, Self::Data) {
@@ -249,7 +247,6 @@ unsafe impl<T> MetaData for T {
 
 unsafe impl<T> MetaData for [T] {
     type Data = usize;
-    type This = Self;
 
     #[inline]
     fn decompose(this: &Self) -> (*const u8, Self::Data) {
@@ -304,7 +301,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * **no** change to the offset
      */
     #[inline]
-    pub fn set(&mut self, value: &T::This) -> Result<(), I::Error> {
+    pub fn set(&mut self, value: &T) -> Result<(), I::Error> {
         let (ptr, meta) = T::decompose(value);
         
         self.0 = I::sub(ptr, self as *mut Self as _)?;
@@ -329,7 +326,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * through `RelPtr::set`
     */
     #[inline]
-    pub unsafe fn as_raw(&self) -> *mut T::This {
+    pub unsafe fn as_raw(&self) -> *mut T {
         if self.is_null() {
             T::compose(std::ptr::null_mut(), T::Data::default())
         } else {
@@ -349,7 +346,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * if `RelPtr::set` was never called successfully, this function is UB
     */
     #[inline]
-    pub unsafe fn as_raw_unchecked(&self) -> *mut T::This {
+    pub unsafe fn as_raw_unchecked(&self) -> *mut T {
         T::compose(self.0.add(self as *const Self as _) as _, self.1)
     }
 }
