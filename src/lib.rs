@@ -1,6 +1,6 @@
 #![cfg_attr(feature = "no_std", no_std)]
 #![cfg_attr(feature = "nightly", feature(const_fn, raw))]
-// #![forbid(missing_docs)]
+#![forbid(missing_docs)]
 
 /*!
     # rel-ptr
@@ -223,11 +223,22 @@ mod fmt {
 
 impl_delta! { i8, i16, i32, i64, i128, isize }
 
+/**
+ * A trait to abstract over the sizedness of types,
+ * and to access metadata about a type
+ */
 pub unsafe trait MetaData {
+    /// the type of meta data a type carries
     type Data: Default + Copy + Eq;
 
+    /// decompose a type into a thin pointer and some metadata
     fn decompose(this: &Self) -> (*const u8, Self::Data);
 
+    /// recompose a type from a thin pointer and some metadata
+    /// 
+    /// it is guarenteed that the metadata is
+    /// * `MetaData::Data::default()` if `ptr == null`
+    /// * generated from `MetaData::decompose`
     unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self;
 }
 

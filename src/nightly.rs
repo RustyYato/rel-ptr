@@ -35,6 +35,11 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     }
 }
 
+/**
+ * A opaque pointer that implements default
+ * 
+ * for internal use only
+ */
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ptr(*mut ());
 
@@ -48,20 +53,29 @@ trait Trait<T: ?Sized> {}
 
 /**
  * `TraitObject` represents a trait object generically
- * 
- * # Safety
- * 
- * The only types that are safe to use with `TraitObject`
- * are trait objects, using anything else is UB
  */
 #[repr(transparent)]
 pub struct TraitObject<T: ?Sized>(dyn Trait<T>);
 
 impl<T: ?Sized> TraitObject<T> {
+    /**
+     * make a new `TraitObject` for use in `RelPtr`
+     *
+     * # Safety
+     * 
+     * This is only safe if `T` is a trait object
+    */
     pub unsafe fn new(t: &T) -> &Self {
         Trans { t }.u
     }
 
+    /**
+     * convert a `TraitObject` into the underlying trait object
+     *
+     * # Safety
+     * 
+     * This is only safe if `T` is a trait object
+    */
     pub unsafe fn into(&self) -> &T {
         Trans { t: self }.u
     }
