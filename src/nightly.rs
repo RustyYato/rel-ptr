@@ -52,18 +52,16 @@ impl Default for Ptr {
 
 trait Trait<T: ?Sized> {}
 
-/**
- * `TraitObject` represents a trait object generically
- */
+/// `TraitObject` represents a trait object generically
 #[repr(transparent)]
 pub struct TraitObject<T: ?Sized>(dyn Trait<T>);
 
 impl<T: ?Sized> TraitObject<T> {
     /**
      * make a new `TraitObject` for use in `RelPtr`
-     *
+     * 
      * # Safety
-     *
+     * 
      * This is only safe if `T` is a trait object
      */
     pub unsafe fn new(t: &T) -> &Self {
@@ -72,9 +70,9 @@ impl<T: ?Sized> TraitObject<T> {
 
     /**
      * convert a `TraitObject` into the underlying trait object
-     *
+     * 
      * # Safety
-     *
+     * 
      * This is only safe if `T` is a trait object
      */
     pub unsafe fn into(&self) -> &T {

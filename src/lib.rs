@@ -171,18 +171,16 @@ pub unsafe trait Delta: Copy + Eq {
      * Note: for all values of `a: *const u8`,
      * you must enforce that `Delta::sub(a, a) == Delta::ZERO`
      * and that the following function does not panic for all values
-     * of `a` and `b`
-     *
+     * of `a` and `b` if the difference between `a` and `b` is valid
+     * 
      * ```ignore
      *  fn for_all_a_b(a: *const u8, b: *const u8) {
-     *      if let Some(x) = Self::sub(a, b) {
-     *          unsafe { assert_eq!(Self::add(x, b), a) }
-     *      }
+     *      unsafe { assert_eq!(Self::add(Self::sub_unchecked(a, b), b), a) }
      *  }
      * ```
-     *
+     * 
      * Safety:
-     *
+     * 
      * If the difference between `a` and `b` is not
      * representable by `Self` is UB
      */
