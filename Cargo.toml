@@ -2,7 +2,7 @@
 name = "rel-ptr"
 version = "0.1.0"
 authors = ["Ozaren <krishna.sd.2012@gmail.com>"]
-repository = "https://github.com/KrishnaSannasi/published_crates/tree/master/set_slice"
+repository = "https://github.com/KrishnaSannasi/rel-ptr"
 description = "A macro for assigning values to slices"
 keywords = ["relative", "pointer", "ptr", "smart"]
 categories = ["no-std"]
