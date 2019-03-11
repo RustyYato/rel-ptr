@@ -1,6 +1,6 @@
 [package]
 name = "rel-ptr"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Ozaren <krishna.sd.2012@gmail.com>"]
 repository = "https://github.com/KrishnaSannasi/rel-ptr"
 description = "A tool for building movable self-referential types"
@@ -16,3 +16,4 @@ no_std = []
 nightly = []
 
 [dependencies]
+unreachable = '1'

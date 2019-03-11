@@ -163,6 +163,29 @@ pub unsafe trait Delta: Copy + Eq {
     fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error>;
 
     /**
+     * The difference between two pointers
+     * 
+     * Note: for all values of `a: *const u8`,
+     * you must enforce that `Delta::sub(a, a) == Delta::ZERO`
+     * and that the following function does not panic for all values
+     * of `a` and `b`
+     * 
+     * ```ignore
+     *  fn for_all_a_b(a: *const u8, b: *const u8) {
+     *      if let Some(x) = Self::sub(a, b) {
+     *          unsafe { assert_eq!(Self::add(x, b), a) }
+     *      }
+     *  }
+     * ```
+     * 
+     * Safety:
+     * 
+     * If the difference between `a` and `b` is not
+     * representable by `Self` is UB
+    */
+    unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self;
+
+    /**
      * Adds the difference (in `self`) to the pointer `a`
      * 
      * Note: for all values of `a: *const u8`,
@@ -205,6 +228,12 @@ macro_rules! impl_delta {
                 } else {
                     Ok(del as _)
                 }
+            }
+
+            unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self {
+                use unreachable::UncheckedOptionExt;
+
+                isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
@@ -363,6 +392,25 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
         self.1 = meta;
 
         Ok(())
+    }
+    
+    /**
+     * set the offset of a relative pointer,
+     * if the offset cannot be calculated using the given
+     * `Delta`, then `None` will be returned, and there will be
+     * **no** change to the offset
+     * 
+     * # Safety
+     * 
+     * if the offset is out of bounds for the given `Delta`
+     * then it's value is UB
+     */
+    #[inline]
+    pub unsafe fn set_unchecked(&mut self, value: &T) {
+        let (ptr, meta) = T::decompose(value);
+        
+        self.0 = I::sub_unchecked(ptr, self as *mut Self as _);
+        self.1 = meta;
     }
 
     /**
