@@ -1,5 +1,6 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-#![forbid(missing_docs)]
+#![cfg_attr(feature = "no_std", no_std)]
+#![cfg_attr(feature = "nightly", feature(const_fn))]
+// #![forbid(missing_docs)]
 
 /*!
 # rel-ptr
@@ -89,7 +90,7 @@ Note on usized types: these are harder to get working
 TODO: Finish example
 */
 
-#[cfg(not(feature = "std"))]
+#[cfg(feature = "no_std")]
 extern crate core as std;
 
 use std::marker::PhantomData;
@@ -195,7 +196,7 @@ enum IntegerDeltaErrorImpl {
     Sub(usize, usize)
 }
 
-#[cfg(feature = "std")]
+#[cfg(not(feature = "no_std"))]
 impl std::error::Error for IntegerDeltaError {}
 
 mod fmt {
@@ -216,19 +217,41 @@ mod fmt {
 
 impl_delta! { i8, i16, i32, i64, i128, isize }
 
-// unsafe trait MetaData {
-//     type Data;
+pub unsafe trait MetaData {
+    type Data: Default + Copy + Eq;
 
-//     fn decompose(this: *const Self) -> (*const (), Self::Data);
+    fn decompose(this: &Self) -> (*const u8, Self::Data);
 
-//     fn compose(ptr: *const (), data: Self::Data) -> *const Self;
-// }
+    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self;
+}
 
-// unsafe impl<T> MetaData for T {
-//     type Data = ();
+unsafe impl<T> MetaData for T {
+    type Data = ();
 
-//     fn decompose(this: *const Self) -> (*const u8)
-// }
+    #[inline]
+    fn decompose(this: &Self) -> (*const u8, Self::Data) {
+        (this as *const Self as _, ())
+    }
+
+    #[inline]
+    unsafe fn compose(ptr: *const u8, (): Self::Data) -> *mut Self {
+        ptr as _
+    }
+}
+
+unsafe impl<T> MetaData for [T] {
+    type Data = usize;
+
+    #[inline]
+    fn decompose(this: &Self) -> (*const u8, Self::Data) {
+        (this.as_ptr() as _, this.len())
+    }
+
+    #[inline]
+    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
+        std::slice::from_raw_parts_mut(ptr as _, data)
+    }
+}
 
 /**
  * This represents a relative pointers
@@ -239,23 +262,23 @@ impl_delta! { i8, i16, i32, i64, i128, isize }
  * 
  * See crate documentation for more information
 */
-#[repr(transparent)]
-pub struct RelPtr<T: ?Sized, I: Delta = isize>(I, PhantomData<*mut T>);
+pub struct RelPtr<T: ?Sized + MetaData, I: Delta = isize>(I, T::Data, PhantomData<*mut T>);
 
-impl<T: ?Sized, I: Delta> Clone for RelPtr<T, I> { fn clone(&self) -> Self { *self } }
-impl<T: ?Sized, I: Delta> Copy for RelPtr<T, I> {}
-impl<T: ?Sized, I: Delta> PartialEq for RelPtr<T, I> {
+impl<T: ?Sized + MetaData, I: Delta> Clone for RelPtr<T, I> { fn clone(&self) -> Self { *self } }
+impl<T: ?Sized + MetaData, I: Delta> Copy for RelPtr<T, I> {}
+impl<T: ?Sized + MetaData, I: Delta> PartialEq for RelPtr<T, I> {
     fn eq(&self, other: &Self) -> bool { std::ptr::eq(self, other) }
 }
-impl<T: ?Sized, I: Delta> Eq for RelPtr<T, I> {}
+impl<T: ?Sized + MetaData, I: Delta> Eq for RelPtr<T, I> {}
 
-impl<T, I: Delta> RelPtr<T, I> {
+impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     /**
      * A null relative pointer has an offset of 0, (points to itself)
     */
     #[inline(always)]
+    #[cfg(not(feature = "nightly"))]
     pub fn null() -> Self {
-        Self(I::ZERO, PhantomData)
+        Self(I::ZERO, <T as MetaData>::Data::default(), PhantomData)
     }
 
     /**
@@ -265,7 +288,7 @@ impl<T, I: Delta> RelPtr<T, I> {
     pub fn is_null(&self) -> bool {
         self.0 == I::ZERO
     }
-
+    
     /**
      * set the offset of a relative pointer,
      * if the offset cannot be calculated using the given
@@ -274,7 +297,10 @@ impl<T, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub fn set(&mut self, value: &T) -> Result<(), I::Error> {
-        self.0 = I::sub(value as *const T as _, self as *mut Self as _)?;
+        let (ptr, meta) = T::decompose(value);
+        
+        self.0 = I::sub(ptr, self as *mut Self as _)?;
+        self.1 = meta;
 
         Ok(())
     }
@@ -297,7 +323,7 @@ impl<T, I: Delta> RelPtr<T, I> {
     #[inline]
     pub unsafe fn as_raw(&self) -> *mut T {
         if self.is_null() {
-            std::ptr::null_mut()
+            T::compose(std::ptr::null_mut(), T::Data::default())
         } else {
             self.as_raw_unchecked()
         }
@@ -316,9 +342,11 @@ impl<T, I: Delta> RelPtr<T, I> {
     */
     #[inline]
     pub unsafe fn as_raw_unchecked(&self) -> *mut T {
-        self.0.add(self as *const Self as _) as _
+        T::compose(self.0.add(self as *const Self as _) as _, self.1)
     }
+}
 
+impl<T, I: Delta> RelPtr<T, I> {
     /**
      * Converts the relative pointer into a normal raw pointer
      * 
@@ -397,22 +425,159 @@ impl<T, I: Delta> RelPtr<T, I> {
     }
 }
 
+impl<T, I: Delta> RelPtr<[T], I> {
+    // /**
+    //  * set the offset of a relative pointer,
+    //  * if the offset cannot be calculated using the given
+    //  * `Delta`, then `None` will be returned, and there will be
+    //  * **no** change to the offset
+    //  */
+    // #[inline]
+    // pub fn set(&mut self, value: &[T]) -> Result<(), I::Error> {
+    //     self.0 = I::sub(value.as_ptr() as _, self as *mut Self as _)?;
+
+    //     Ok(())
+    // }
+
+    // /**
+    //  * Converts the relative pointer into a normal raw pointer
+    //  * 
+    //  * Note: if `self.is_null()` then a null pointer will be returned
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * You must ensure that if `RelPtr::set` was called successfully before
+    //  * calling this function and that the value pointed to does not change it's 
+    //  * offset relative to `RelPtr`
+    //  * 
+    //  * if `RelPtr::set` was never called successfully, this function is safe and returns
+    //  * `None` because the only way to construct a `RelPtr` is to make a null ptr and change it
+    //  * through `RelPtr::set`
+    // */
+    // #[inline]
+    // pub unsafe fn as_raw(&self) -> *mut [T] {
+    //     if self.is_null() {
+    //         std::slice::from_raw_parts_mut(std::ptr::null_mut(), 0)
+    //     } else {
+    //         self.as_raw_unchecked()
+    //     }
+    // }
+
+    // /**
+    //  * Converts the relative pointer into a normal raw pointer
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * You must ensure that `RelPtr::set` was called successfully before
+    //  * calling this function and that the value pointed to does not change it's 
+    //  * offset relative to `RelPtr`
+    //  * 
+    //  * if `RelPtr::set` was never called successfully, this function is UB
+    // */
+    // #[inline]
+    // pub unsafe fn as_raw_unchecked(&self) -> *mut [T] {
+    //     std::slice::from_raw_parts_mut(
+    //         self.0.add(self as *const Self as _) as _,
+    //         0
+    //     )
+    // }
+
+    // /**
+    //  * Converts the relative pointer into a normal raw pointer
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw`
+    // */
+    // #[inline]
+    // pub unsafe fn as_non_null(&self) -> Option<NonNull<T>> {
+    //     self.as_ref().map(NonNull::from)
+    // }
+
+    // /**
+    //  * Converts the relative pointer into a normal raw pointer
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw_unchecked`
+    // */
+    // #[inline]
+    // pub unsafe fn as_non_null_unchecked(&self) -> NonNull<T> {
+    //     NonNull::new_unchecked(self.as_raw_unchecked())
+    // }
+
+    // /**
+    //  * Gets a reference from the relative pointer,
+    //  * if the relative pointer is null, then `None` is
+    //  * returned
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw`
+    //  */
+    // #[inline]
+    // pub unsafe fn as_ref(&self) -> Option<&T> {
+    //     <*const T>::as_ref(self.as_raw())
+    // }
+
+    // /**
+    //  * Gets a mutable reference from the relative pointer,
+    //  * if the relative pointer is null, then `None` is
+    //  * returned
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw`
+    //  */
+    // #[inline]
+    // pub unsafe fn as_mut(&mut self) -> Option<&mut T> {
+    //     <*mut T>::as_mut(self.0.add(self as *const Self as _) as _)
+    // }
+    
+    // /**
+    //  * Gets a reference from the relative pointer
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw_unchecked`
+    //  */
+    // #[inline]
+    // pub unsafe fn as_ref_unchecked(&self) -> &T {
+    //     &*self.as_raw_unchecked()
+    // }
+    
+    
+    // /**
+    //  * Gets a mutable reference from the relative pointer
+    //  * 
+    //  * # Safety
+    //  * 
+    //  * Same as `RelPtr::as_raw_unchecked`
+    //  */
+    // #[inline]
+    // pub unsafe fn as_mut_unchecked(&mut self) -> &mut T {
+    //     &mut *self.as_raw_unchecked()
+    // }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{RelPtr, Delta};
 
-    struct SelfRef<T> {
+    struct SelfRef<T, U> {
         t_ref: RelPtr<T, i8>,
-        t: T,
+        t: U,
     }
 
-    impl<T> SelfRef<T> {
-        pub fn new<U: Into<T>>(t: U) -> Self {
+    fn id<T>(t: T) -> T { t }
+
+    impl<T, U> SelfRef<T, U> {
+        pub fn new(t: T, f: fn(&T) -> &U) -> Self {
             let mut this = Self {
                 t: t.into(), t_ref: RelPtr::null()
             };
 
-            this.t_ref.set(&this.t);
+            this.t_ref.set(f(&this.t));
 
             this
         }
@@ -421,7 +586,7 @@ mod tests {
             &self.t
         }
 
-        pub fn t_mut(&mut self) -> &mut T {
+        pub fn t_mut(&mut self) -> &mut U {
             &mut self.t
         }
 
@@ -429,13 +594,13 @@ mod tests {
             unsafe { self.t_ref.as_ref_unchecked() }
         }
 
-        pub fn t_ref_mut(&mut self) -> &mut T {
+        pub fn t_ref_mut(&mut self) -> &mut U {
             unsafe { self.t_ref.as_mut_unchecked() }
         }
     }
 
     #[inline(never)]
-    fn block_opt<T>(x: T) -> T { x }
+    fn block_opt<T>(x: &T) -> &T { x }
 
     #[test]
     fn simple_test() {
@@ -471,7 +636,7 @@ mod tests {
 
     #[test]
     fn simple_move_after_init() {
-        let mut s = SelfRef::<&str>::new("Hello World");
+        let mut s = SelfRef::new("Hello World", id);
 
         assert_eq!(s.t(), s.t_ref());
         assert_eq!(*s.t(), "Hello World");
@@ -486,8 +651,8 @@ mod tests {
 
     #[test]
     fn swap() {
-        let mut s = SelfRef::<&str>::new("Hello World");
-        let mut x = SelfRef::<&str>::new("Killer Move");
+        let mut s = SelfRef::new("Hello World", id);
+        let mut x = SelfRef::new("Killer Move", id);
 
         assert_eq!(*s.t(), "Hello World");
         assert_eq!(*x.t(), "Killer Move");
@@ -506,7 +671,7 @@ mod tests {
 
     #[test]
     fn aliasing() {
-        let mut s = SelfRef::<&str>::new("Hello World");
+        let mut s = SelfRef::new("Hello World", id);
         
         assert_eq!(s.t(), s.t_ref());
         

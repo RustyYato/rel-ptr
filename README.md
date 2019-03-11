@@ -8,6 +8,16 @@ as a primitive into Jai.
 A relative pointer is a pointer that uses an offset and it's current location to
 calculate where it points to.
 
+## Features
+
+### `no_std`
+
+This crate is `no-std` compatible, simply add the feature `no_std` to move into `no_std` mode.
+
+### nightly
+
+with nightly you get a `const` constructor for `RelPtr`
+
 ## Example
 
 take the memory segment below
@@ -47,8 +57,6 @@ Note on usized types: these are harder to get working
 ## Self Referential Type Example
 
 ```rust
-# fn main() {
-# use rel_ptr::RelPtr;
  struct SelfRef {
      value: (String, u32),
      ptr: RelPtr<String, i8>
@@ -79,7 +87,14 @@ Note on usized types: these are harder to get working
  
  assert_eq!(s.fst(), "Hello World");
  assert_eq!(s.snd(), 10);
-# }
 ```
 
-TODO: Finish example
+This example is contrived, and only useful as an example.
+In this example, we can see a few important parts to safe moveable self-referential types,
+lets walk through them.
+
+First, the definition of `SelfRef`, it contains a value and a relative pointer, the relative pointer that will point into the tuple inside of `SelfRef.value` to the `String`. There are no lifetimes involved because they would either make `SelfRef` immovable, or they could not be resolved correctly.
+
+We see a pattern inside of `SelfRef::new`, first create the object, and use the sentinel `RelPtr::null()` and immediately afterwards assigning it a value using `RelPtr::set` and unwraping the result. This unwrapping is get quick feedback on whether or not the pointer was set, if it wasn't set then we can increase the size of the offset and resolve that.
+
+Once the pointer is set, moving the struct is still safe because it is using a *relative* pointer, so it doesn't matter where it is, only it's offset from 
