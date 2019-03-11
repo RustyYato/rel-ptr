@@ -1,11 +1,10 @@
-
 use std::raw::TraitObject as TORepr;
 
 use super::MetaData;
 
 union Trans<T: Copy, U: Copy> {
     t: T,
-    u: U
+    u: U,
 }
 
 unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
@@ -16,7 +15,9 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
         let repr = Trans { t };
 
         unsafe {
-            let Trans { u: TORepr { data, vtable } } = repr;
+            let Trans {
+                u: TORepr { data, vtable },
+            } = repr;
 
             (data as _, Ptr(vtable))
         }
@@ -27,17 +28,17 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
         let repr = Trans {
             u: TORepr {
                 data: ptr as _,
-                vtable: data.0
-            }
+                vtable: data.0,
+            },
         };
-        
+
         repr.t
     }
 }
 
 /**
  * A opaque pointer that implements default
- * 
+ *
  * for internal use only
  */
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -62,9 +63,9 @@ impl<T: ?Sized> TraitObject<T> {
      * make a new `TraitObject` for use in `RelPtr`
      *
      * # Safety
-     * 
+     *
      * This is only safe if `T` is a trait object
-    */
+     */
     pub unsafe fn new(t: &T) -> &Self {
         Trans { t }.u
     }
@@ -73,9 +74,9 @@ impl<T: ?Sized> TraitObject<T> {
      * convert a `TraitObject` into the underlying trait object
      *
      * # Safety
-     * 
+     *
      * This is only safe if `T` is a trait object
-    */
+     */
     pub unsafe fn into(&self) -> &T {
         Trans { t: self }.u
     }
