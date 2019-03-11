@@ -16,7 +16,7 @@ This crate is `no-std` compatible, simply add the feature `no_std` to move into 
 
 ### nightly
 
-with nightly you get a `const` constructor for `RelPtr`
+with nightly you get the ability to use trait objects with relative pointers
 
 ## Example
 
@@ -84,6 +84,11 @@ Note on usized types: these are harder to get working
  }
 
  let s = SelfRef::new("Hello World".into(), 10);
+ 
+ assert_eq!(s.fst(), "Hello World");
+ assert_eq!(s.snd(), 10);
+ 
+ let s = Box::new(s); // force a move, note: relative pointers even work on the heap
  
  assert_eq!(s.fst(), "Hello World");
  assert_eq!(s.snd(), 10);
