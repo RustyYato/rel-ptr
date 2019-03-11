@@ -283,11 +283,9 @@ unsafe impl MetaData for str {
 
     #[inline]
     unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
-        unsafe {
-            std::str::from_utf8_unchecked(
-                std::slice::from_raw_parts_mut(ptr as _, data)
-            ) as *const str as _
-        }
+        std::str::from_utf8_unchecked(
+            std::slice::from_raw_parts_mut(ptr as _, data)
+        ) as *const str as _
     }
 }
 
