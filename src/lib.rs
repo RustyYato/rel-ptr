@@ -226,6 +226,9 @@ impl_delta! { i8, i16, i32, i64, i128, isize }
 /**
  * A trait to abstract over the sizedness of types,
  * and to access metadata about a type
+ * 
+ * If [Custom DST](https://github.com/rust-lang/rfcs/pull/2594) lands and stablizes,
+ * then it will replace `MetaData`
  */
 pub unsafe trait MetaData {
     /// the type of meta data a type carries
@@ -267,6 +270,24 @@ unsafe impl<T> MetaData for [T] {
     #[inline]
     unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
         std::slice::from_raw_parts_mut(ptr as _, data)
+    }
+}
+
+unsafe impl MetaData for str {
+    type Data = usize;
+
+    #[inline]
+    fn decompose(this: &Self) -> (*const u8, Self::Data) {
+        (this.as_ptr() as _, this.len())
+    }
+
+    #[inline]
+    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
+        unsafe {
+            std::str::from_utf8_unchecked(
+                std::slice::from_raw_parts_mut(ptr as _, data)
+            ) as *const str as _
+        }
     }
 }
 
