@@ -1,6 +1,7 @@
 use std::raw::TraitObject as TORepr;
+use core::num::*;
 
-use super::MetaData;
+use super::{MetaData, IntegerDeltaError, IntegerDeltaErrorImpl, Delta};
 
 union Trans<T: Copy, U: Copy> {
     t: T,
@@ -79,3 +80,42 @@ impl<T: ?Sized> TraitObject<T> {
         Trans { t: self }.u
     }
 }
+
+macro_rules! impl_delta_nonzero {
+    ($($type:ident $base:ident),* $(,)?) => {$(
+        unsafe impl Delta for $type {
+            type Error = IntegerDeltaError;
+
+            fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error> {
+                let del = match isize::checked_sub(a as usize as _, b as usize as _) {
+                    None => return Err(IntegerDeltaError(IntegerDeltaErrorImpl::Sub(a as usize, b as usize))),
+                    Some(0) => return Err(IntegerDeltaError(IntegerDeltaErrorImpl::InvalidNonZero)),
+                    Some(del) => del,
+                };
+
+                if std::mem::size_of::<Self>() < std::mem::size_of::<isize>() && (
+                    ($base::min_value() as isize) > del ||
+                    ($base::max_value() as isize) < del
+                )
+                {
+                    Err(IntegerDeltaError(IntegerDeltaErrorImpl::Conversion(del)))
+                } else {
+                    // 0 case was checked in match before hand, so this is guarenteed ot be non zero
+                    unsafe { Ok(Self::new_unchecked(del as _)) }
+                }
+            }
+
+            unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self {
+                use unreachable::UncheckedOptionExt;
+
+                Self::new_unchecked(isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _)
+            }
+
+            unsafe fn add(self, a: *const u8) -> *mut u8 {
+                <*const u8>::offset(a, self.get() as isize) as *mut u8
+            }
+        }
+    )*};
+}
+
+impl_delta_nonzero! { NonZeroI8 i8, NonZeroI16 i16, NonZeroI32 i32, NonZeroI64 i64, NonZeroI128 i128, NonZeroIsize isize }

@@ -13,6 +13,10 @@
     A relative pointer is a pointer that uses an offset and it's current location to
     calculate where it points to.
 
+    ## Safety
+
+    See the `RelPtr` type docs for safety information
+
     ## Features
 
     ### `no_std`
@@ -124,94 +128,20 @@ mod tests;
 #[cfg(feature = "nightly")]
 mod nightly;
 
+mod traits;
+mod error;
+
 #[cfg(feature = "nightly")]
-pub use nightly::*;
+pub use self::nightly::*;
+pub use self::traits::*;
+pub use self::error::*;
 
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-/**
- * `Delta` trait generalizes differences in
- * memory locations to types like i8 and i16
- *
- * Note: certain invariants must be upheld to fulfill
- * the unsafe contract of this trait, these invariants
- * are detailed in each function
- *
- * This trait is intended to be used with `RelPtr`
- */
-pub unsafe trait Delta: Copy + Eq {
-    /// The value No change in two pointer locations,
-    const ZERO: Self;
-
-    /// Error of `Delta::sub`
-    type Error;
-
-    /**
-     * The difference between two pointers
-     *
-     * Note: for all values of `a: *const u8`,
-     * you must enforce that `Delta::sub(a, a) == Delta::ZERO`
-     * and that the following function does not panic for all values
-     * of `a` and `b`
-     *
-     * ```ignore
-     *  fn for_all_a_b(a: *const u8, b: *const u8) {
-     *      if let Some(x) = Self::sub(a, b) {
-     *          unsafe { assert_eq!(Self::add(x, b), a) }
-     *      }
-     *  }
-     * ```
-     */
-    fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error>;
-
-    /**
-     * The difference between two pointers
-     *
-     * Note: for all values of `a: *const u8`,
-     * you must enforce that `Delta::sub(a, a) == Delta::ZERO`
-     * and that the following function does not panic for all values
-     * of `a` and `b` if the difference between `a` and `b` is valid
-     * 
-     * ```ignore
-     *  fn for_all_a_b(a: *const u8, b: *const u8) {
-     *      unsafe { assert_eq!(Self::add(Self::sub_unchecked(a, b), b), a) }
-     *  }
-     * ```
-     * 
-     * Safety:
-     * 
-     * If the difference between `a` and `b` is not
-     * representable by `Self` is UB
-     */
-    unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self;
-
-    /**
-     * Adds the difference (in `self`) to the pointer `a`
-     *
-     * Note: for all values of `a: *const u8`,
-     * you must enforce that `Delta::add(Delta::ZERO, a) == a`
-     * and that the following function does not panic for all values
-     * of `a` and `b`
-     *
-     * ```ignore
-     *  fn for_all_a_b(a: *const u8, b: *const u8) {
-     *      if let Some(x) = Self::sub(a, b) {
-     *          unsafe { assert_eq!(Self::add(x, b), a) }
-     *      }
-     *  }
-     * ```
-     *
-     * # Safety
-     * TODO
-     */
-    unsafe fn add(self, a: *const u8) -> *mut u8;
-}
-
-macro_rules! impl_delta {
+macro_rules! impl_delta_zeroable {
     ($($type:ty),* $(,)?) => {$(
         unsafe impl Delta for $type {
-            const ZERO: Self = 0;
             type Error = IntegerDeltaError;
 
             fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error> {
@@ -241,111 +171,14 @@ macro_rules! impl_delta {
                 <*const u8>::offset(a, self as isize) as *mut u8
             }
         }
+
+        impl Nullable for $type {
+            const NULL: Self = 0;
+        }
     )*};
 }
 
-/**
- * If an integer's range is too small to store an offset, then
- * this error is generated
- */
-#[derive(Debug)]
-pub struct IntegerDeltaError(IntegerDeltaErrorImpl);
-
-#[derive(Debug)]
-enum IntegerDeltaErrorImpl {
-    Conversion(isize),
-    Sub(usize, usize),
-}
-
-#[cfg(not(feature = "no_std"))]
-impl std::error::Error for IntegerDeltaError {}
-
-mod fmt {
-    use super::*;
-    use std::fmt;
-
-    impl fmt::Display for IntegerDeltaError {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            match self.0 {
-                IntegerDeltaErrorImpl::Conversion(del) => write!(
-                    f,
-                    "Offset could not be stored (offset of {} is too large)",
-                    del
-                ),
-                IntegerDeltaErrorImpl::Sub(a, b) => {
-                    write!(f, "Difference is beween {} and {} overflows `isize`", a, b)
-                }
-            }
-        }
-    }
-}
-
-impl_delta! { i8, i16, i32, i64, i128, isize }
-
-/**
- * A trait to abstract over the sizedness of types,
- * and to access metadata about a type
- *
- * If [Custom DST](https://github.com/rust-lang/rfcs/pull/2594) lands and stablizes,
- * then it will replace `MetaData`
- */
-pub unsafe trait MetaData {
-    /// the type of meta data a type carries
-    type Data: Default + Copy + Eq;
-
-    /// decompose a type into a thin pointer and some metadata
-    fn decompose(this: &Self) -> (*const u8, Self::Data);
-
-    /// recompose a type from a thin pointer and some metadata
-    ///
-    /// it is guarenteed that the metadata is
-    /// * `MetaData::Data::default()` if `ptr == null`
-    /// * generated from `MetaData::decompose`
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self;
-}
-
-unsafe impl<T> MetaData for T {
-    type Data = ();
-
-    #[inline]
-    fn decompose(this: &Self) -> (*const u8, Self::Data) {
-        (this as *const Self as _, ())
-    }
-
-    #[inline]
-    unsafe fn compose(ptr: *const u8, (): Self::Data) -> *mut Self {
-        ptr as _
-    }
-}
-
-unsafe impl<T> MetaData for [T] {
-    type Data = usize;
-
-    #[inline]
-    fn decompose(this: &Self) -> (*const u8, Self::Data) {
-        (this.as_ptr() as _, this.len())
-    }
-
-    #[inline]
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
-        std::slice::from_raw_parts_mut(ptr as _, data)
-    }
-}
-
-unsafe impl MetaData for str {
-    type Data = usize;
-
-    #[inline]
-    fn decompose(this: &Self) -> (*const u8, Self::Data) {
-        (this.as_ptr() as _, this.len())
-    }
-
-    #[inline]
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
-        std::str::from_utf8_unchecked(std::slice::from_raw_parts_mut(ptr as _, data)) as *const str
-            as _
-    }
-}
+impl_delta_zeroable! { i8, i16, i32, i64, i128, isize }
 
 /**
  * This represents a relative pointers
@@ -355,8 +188,18 @@ unsafe impl MetaData for str {
  * to point to a value
  *
  * See crate documentation for more information
+ * 
+ * # Safety
+ * 
+ * When using `core::num::NonZero*`, it is UB to have the `RelPtr` point to itself, this could be achieved
+ * with 
+ * 
+ * If you use `RelPtr::from(offset)`, then you must ensure that the relative pointer is set with the
+ * given functions to avoid UB
 */
 pub struct RelPtr<T: ?Sized + MetaData, I: Delta = isize>(I, T::Data, PhantomData<*mut T>);
+
+// Ergonomics and ptr like impls
 
 impl<T: ?Sized + MetaData, I: Delta> Copy for RelPtr<T, I> {}
 impl<T: ?Sized + MetaData, I: Delta> Clone for RelPtr<T, I> {
@@ -372,13 +215,21 @@ impl<T: ?Sized + MetaData, I: Delta> PartialEq for RelPtr<T, I> {
     }
 }
 
-impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
+impl<T: ?Sized + MetaData, I: Delta> From<I> for RelPtr<T, I> {
+    fn from(i: I) -> Self {
+        Self(i, <T as MetaData>::Data::default(), PhantomData)
+    }
+}
+
+// Core api
+
+impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     /**
      * A null relative pointer has an offset of 0, (points to itself)
      */
     #[inline(always)]
     pub fn null() -> Self {
-        Self(I::ZERO, <T as MetaData>::Data::default(), PhantomData)
+        Self(I::NULL, <T as MetaData>::Data::default(), PhantomData)
     }
 
     /**
@@ -386,9 +237,11 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline(always)]
     pub fn is_null(&self) -> bool {
-        self.0 == I::ZERO
+        self.0 == I::NULL
     }
+}
 
+impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     /**
      * set the offset of a relative pointer,
      * if the offset cannot be calculated using the given
@@ -424,6 +277,60 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     /**
      * Converts the relative pointer into a normal raw pointer
      *
+     * # Safety
+     *
+     * You must ensure that the relative pointer was successfully set before
+     * calling this function and that the value pointed to does not change it's
+     * offset relative to `RelPtr`
+     *
+     * if `RelPtr::set` was never called successfully, this function is UB
+     */
+    #[inline]
+    pub unsafe fn as_raw_unchecked(&self) -> *mut T {
+        T::compose(self.0.add(self as *const Self as _) as _, self.1)
+    }
+
+    /**
+     * Converts the relative pointer into a normal raw pointer
+     *
+     * # Safety
+     *
+     * Same as `RelPtr::as_raw_unchecked`
+     */
+    #[inline]
+    pub unsafe fn as_non_null_unchecked(&self) -> NonNull<T> {
+        NonNull::new_unchecked(self.as_raw_unchecked())
+    }
+
+    /**
+     * Gets a reference from the relative pointer
+     *
+     * # Safety
+     *
+     * Same as `RelPtr::as_raw_unchecked`
+     */
+    #[inline]
+    pub unsafe fn as_ref_unchecked(&self) -> &T {
+        &*self.as_raw_unchecked()
+    }
+
+    /**
+     * Gets a mutable reference from the relative pointer
+     *
+     * # Safety
+     *
+     * Same as `RelPtr::as_raw_unchecked`
+     */
+    #[inline]
+    pub unsafe fn as_mut_unchecked(&mut self) -> &mut T {
+        &mut *self.as_raw_unchecked()
+    }
+}
+
+impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
+    /**
+     * Converts the relative pointer into a normal raw pointer
+     *
      * Note: if `self.is_null()` then a null pointer will be returned
      *
      * # Safety
@@ -451,39 +358,11 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      *
      * # Safety
      *
-     * You must ensure that the relative pointer was successfully set before
-     * calling this function and that the value pointed to does not change it's
-     * offset relative to `RelPtr`
-     *
-     * if `RelPtr::set` was never called successfully, this function is UB
-     */
-    #[inline]
-    pub unsafe fn as_raw_unchecked(&self) -> *mut T {
-        T::compose(self.0.add(self as *const Self as _) as _, self.1)
-    }
-
-    /**
-     * Converts the relative pointer into a normal raw pointer
-     *
-     * # Safety
-     *
      * Same as `RelPtr::as_raw`
      */
     #[inline]
     pub unsafe fn as_non_null(&self) -> Option<NonNull<T>> {
         self.as_ref().map(NonNull::from)
-    }
-
-    /**
-     * Converts the relative pointer into a normal raw pointer
-     *
-     * # Safety
-     *
-     * Same as `RelPtr::as_raw_unchecked`
-     */
-    #[inline]
-    pub unsafe fn as_non_null_unchecked(&self) -> NonNull<T> {
-        NonNull::new_unchecked(self.as_raw_unchecked())
     }
 
     /**
@@ -512,29 +391,5 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     #[inline]
     pub unsafe fn as_mut(&mut self) -> Option<&mut T> {
         <*mut T>::as_mut(self.as_raw())
-    }
-
-    /**
-     * Gets a reference from the relative pointer
-     *
-     * # Safety
-     *
-     * Same as `RelPtr::as_raw_unchecked`
-     */
-    #[inline]
-    pub unsafe fn as_ref_unchecked(&self) -> &T {
-        &*self.as_raw_unchecked()
-    }
-
-    /**
-     * Gets a mutable reference from the relative pointer
-     *
-     * # Safety
-     *
-     * Same as `RelPtr::as_raw_unchecked`
-     */
-    #[inline]
-    pub unsafe fn as_mut_unchecked(&mut self) -> &mut T {
-        &mut *self.as_raw_unchecked()
     }
 }
