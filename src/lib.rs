@@ -145,7 +145,7 @@ macro_rules! impl_delta_zeroable {
         unsafe impl Delta for $type {
             type Error = IntegerDeltaError;
 
-            fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error> {
+            fn sub(a: *mut u8, b: *mut u8) -> Result<Self, Self::Error> {
                 let del = match isize::checked_sub(a as usize as _, b as usize as _) {
                     Some(del) => del,
                     None => return Err(IntegerDeltaError(IntegerDeltaErrorImpl::Sub(a as usize, b as usize)))
@@ -162,14 +162,14 @@ macro_rules! impl_delta_zeroable {
                 }
             }
 
-            unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self {
+            unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
                 use unreachable::UncheckedOptionExt;
 
                 isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
-                <*const u8>::offset(a, self as isize) as *mut u8
+                <*mut u8>::offset(a as _, self as isize) as *mut u8
             }
         }
 
@@ -197,6 +197,26 @@ impl_delta_zeroable! { i8, i16, i32, i64, i128, isize }
  * 
  * If you use `RelPtr::from(offset)`, then you must ensure that the relative pointer is set with the
  * given functions to avoid UB
+ * 
+ * When using `RelPtr` with packed structs it is important to keep in mind that packed struct move fields
+ * to align them to drop them. For example, the below example is UB
+ * 
+ * ```ignore
+ *  #[repr(packed)]
+ *  struct Base(String, UnsafeThing);
+ * 
+ *  struct UnsafeThing(RelPtr<String>); // points into Base
+ * 
+ *  impl Drop for UnsafeThing {
+ *      fn drop(&mut self) {
+ *          // ... accessing `RelPtr<String>` here is UB
+ *      }
+ *  }
+ * ```
+ * 
+ * This is because when `Base` drops, all of the fields are moved to align them. So the offset between the `String` in
+ * unsafe thing and the `RelPtr<String>` in `UnsafeThing` could be changed. This will result in UB if you try to access
+ * String inside of `UnsafeThing` even if you enforce drop order!
 */
 pub struct RelPtr<T: ?Sized + MetaData, I: Delta = isize>(I, T::Data, PhantomData<*mut T>);
 
@@ -250,7 +270,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * **no** change to the offset
      */
     #[inline]
-    pub fn set(&mut self, value: &T) -> Result<(), I::Error> {
+    pub fn set(&mut self, value: &mut T) -> Result<(), I::Error> {
         let (ptr, meta) = T::decompose(value);
 
         self.0 = I::sub(ptr, self as *mut Self as _)?;
@@ -266,10 +286,12 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      *
      * if the offset is out of bounds for the given `Delta`
      * then it's value is UB
+     * 
+     * if the given pointer is null, this is UB
      */
     #[inline]
-    pub unsafe fn set_unchecked(&mut self, value: &T) {
-        let (ptr, meta) = T::decompose(value);
+    pub unsafe fn set_unchecked(&mut self, value: *mut T) {
+        let (ptr, meta) = T::decompose(&mut *value);
 
         self.0 = I::sub_unchecked(ptr, self as *mut Self as _);
         self.1 = meta;
@@ -299,7 +321,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * Same as `RelPtr::as_raw_unchecked`
      */
     #[inline]
-    pub unsafe fn as_non_null_unchecked(&self) -> NonNull<T> {
+    pub unsafe fn as_non_null_unchecked(&mut self) -> NonNull<T> {
         NonNull::new_unchecked(self.as_raw_unchecked())
     }
 
@@ -377,7 +399,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_ref(&self) -> Option<&T> {
-        <*const T>::as_ref(self.as_raw())
+        <*mut T>::as_ref(self.as_raw())
     }
 
     /**

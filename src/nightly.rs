@@ -12,8 +12,8 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     type Data = Ptr;
 
     #[inline]
-    fn decompose(t: &Self) -> (*const u8, Self::Data) {
-        let repr = Trans { t };
+    fn decompose(t: &mut Self) -> (*mut u8, Self::Data) {
+        let repr = Trans { t: t as *mut Self };
 
         unsafe {
             let Trans {
@@ -25,7 +25,7 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     }
 
     #[inline]
-    unsafe fn compose(ptr: *const u8, data: Self::Data) -> *mut Self {
+    unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self {
         let repr = Trans {
             u: TORepr {
                 data: ptr as _,
@@ -65,7 +65,7 @@ impl<T: ?Sized> TraitObject<T> {
      * 
      * This is only safe if `T` is a trait object
      */
-    pub unsafe fn new(t: &T) -> &Self {
+    pub unsafe fn from(t: *mut T) -> *mut Self {
         Trans { t }.u
     }
 
@@ -76,8 +76,8 @@ impl<T: ?Sized> TraitObject<T> {
      * 
      * This is only safe if `T` is a trait object
      */
-    pub unsafe fn into(&self) -> &T {
-        Trans { t: self }.u
+    pub unsafe fn into(t: *mut Self) -> *mut T {
+        Trans { t }.u
     }
 }
 
@@ -86,7 +86,7 @@ macro_rules! impl_delta_nonzero {
         unsafe impl Delta for $type {
             type Error = IntegerDeltaError;
 
-            fn sub(a: *const u8, b: *const u8) -> Result<Self, Self::Error> {
+            fn sub(a: *mut u8, b: *mut u8) -> Result<Self, Self::Error> {
                 let del = match isize::checked_sub(a as usize as _, b as usize as _) {
                     None => return Err(IntegerDeltaError(IntegerDeltaErrorImpl::Sub(a as usize, b as usize))),
                     Some(0) => return Err(IntegerDeltaError(IntegerDeltaErrorImpl::InvalidNonZero)),
@@ -105,14 +105,14 @@ macro_rules! impl_delta_nonzero {
                 }
             }
 
-            unsafe fn sub_unchecked(a: *const u8, b: *const u8) -> Self {
+            unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
                 use unreachable::UncheckedOptionExt;
 
                 Self::new_unchecked(isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _)
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
-                <*const u8>::offset(a, self.get() as isize) as *mut u8
+                <*mut u8>::offset(a as _, self.get() as isize) as *mut u8
             }
         }
     )*};
