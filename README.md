@@ -8,6 +8,10 @@ as a primitive into Jai.
 A relative pointer is a pointer that uses an offset and it's current location to
 calculate where it points to.
 
+## Safety
+
+See the `RelPtr` type docs for safety information
+
 ## Features
 
 ### `no_std`
@@ -69,7 +73,7 @@ Note on usized types: these are harder to get working
              ptr: RelPtr::null()
          };
          
-         this.ptr.set(&this.value.0).unwrap();
+         this.ptr.set(&mut this.value.0).unwrap();
          
          this
      }
@@ -105,3 +109,27 @@ We see a pattern inside of `SelfRef::new`, first create the object, and use the 
 Once the pointer is set, moving the struct is still safe because it is using a *relative* pointer, so it doesn't matter where it is, only it's offset from its pointee.
 In `SelfRef::fst` we use `RelPtr::as_ref_unchecked` because it is impossible to invalidate the pointer. It is impossible because we cannot
 set the relative pointer directly, and we cannot change the offsets of the fields of `SelfRef` after the relative pointer is set.
+
+---
+# Release Notes
+
+## 0.1.4
+
+### Additions
+
+ * Support for `NonZero*` integers
+ * Formatting for all `RelPtr` whose idicies support formatting
+ 
+### Removals
+
+ 
+### Changes
+
+ * Converted api to use `&mut T` instead of `&T`
+    * this better represents the semantics of `RelPtr` and was suggested by [Yandros](https://users.rust-lang.org/u/Yandros)
+ * Moved `Delta::ZERO` to `Nullable::NULL`
+    * This was to enable support for `NonZero*` types
+ * Updated documentation to better explain possible UB
+
+ * Changed from `TraitObject::into` to `TraitObject::as_ref` and `TraitObject::as_mut`
+    * 
