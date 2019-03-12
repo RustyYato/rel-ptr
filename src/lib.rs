@@ -80,7 +80,7 @@
                 ptr: RelPtr::null()
             };
 
-            this.ptr.set(&this.value.0).unwrap();
+            this.ptr.set(&mut this.value.0).unwrap();
 
             this
         }

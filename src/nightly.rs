@@ -65,19 +65,18 @@ impl<T: ?Sized> TraitObject<T> {
      * 
      * This is only safe if `T` is a trait object
      */
-    pub unsafe fn from(t: *mut T) -> *mut Self {
-        Trans { t }.u
+    pub unsafe fn new(t: &mut T) -> &mut Self {
+        &mut *(Trans::<*mut T, *mut Self> { t: t as _ }.u)
     }
 
-    /**
-     * convert a `TraitObject` into the underlying trait object
-     * 
-     * # Safety
-     * 
-     * This is only safe if `T` is a trait object
-     */
-    pub unsafe fn into(t: *mut Self) -> *mut T {
-        Trans { t }.u
+    /// convert a `TraitObject` into the underlying trait object
+    pub fn as_ref(&self) -> &T {
+        unsafe { &*(Trans::<*const Self, *const T> { t: self as _ }.u) }
+    }
+
+    /// convert a `TraitObject` into the underlying trait object
+    pub fn as_ref_mut(&mut self) -> &mut T {
+        unsafe { &mut *(Trans::<*mut Self, *mut T> { t: self as _ }.u) }
     }
 }
 

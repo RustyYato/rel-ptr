@@ -5,18 +5,18 @@ struct SelfRef<T, U: ?Sized + MetaData> {
     t: T,
 }
 
-fn id<T>(t: &T) -> &T {
+fn id<T>(t: &mut T) -> &mut T {
     t
 }
 
 impl<T, U: ?Sized + MetaData> SelfRef<T, U> {
-    pub fn new(t: T, f: fn(&T) -> &U) -> Self {
+    pub fn new(t: T, f: fn(&mut T) -> &mut U) -> Self {
         let mut this = Self {
             t: t.into(),
             t_ref: RelPtr::null(),
         };
 
-        this.t_ref.set(f(&this.t)).unwrap();
+        this.t_ref.set(f(&mut this.t)).unwrap();
 
         this
     }
@@ -51,7 +51,7 @@ fn simple_test() {
         t_ref: RelPtr::null(),
     };
 
-    s.t_ref.set(&s.t).unwrap();
+    s.t_ref.set(&mut s.t).unwrap();
 
     assert_eq!(s.t(), s.t_ref());
     assert_eq!(*s.t(), "Hello World");
@@ -65,7 +65,7 @@ fn simple_move() {
         t_ref: RelPtr::null(),
     };
 
-    s.t_ref.set(&s.t).unwrap();
+    s.t_ref.set(&mut s.t).unwrap();
 
     assert_eq!(s.t(), s.t_ref());
     assert_eq!(*s.t(), "Hello World");
@@ -133,7 +133,7 @@ fn sub_str() {
         assert_eq!(*s.t_ref(), [2, 3, 4]);
     }
 
-    let s = SelfRef::new([0, 1, 2, 3, 4], |x| &x[2..]);
+    let s = SelfRef::new([0, 1, 2, 3, 4], |x| &mut x[2..]);
 
     assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
     assert_eq!(*s.t_ref(), [2, 3, 4]);
@@ -153,70 +153,77 @@ fn check_copy() {
 #[cfg(feature = "nightly")]
 mod nightly {
     use super::*;
-
+    
+    #[test]
     fn check_trait_object_simple() {
         use std::fmt::Display;
 
-        let s = unsafe {
-            SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new([0, 1, 2, 3, 4], |x| {
+        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+            [0, 1, 2, 3, 4],
+            |x| unsafe {
+                let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
                 TraitObject::new(x)
-            })
-        };
+            }
+        );
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().into() } == eq);
+        assert!(s.t_ref().as_ref() == eq);
     }
 
-    #[cfg(feature = "no_std")]
+    #[test]
     fn check_trait_object_after_move() {
         use std::fmt::Display;
 
-        let s = unsafe {
-            SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new([0, 1, 2, 3, 4], |x| {
+        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+            [0, 1, 2, 3, 4],
+            |x| unsafe {
+                let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
                 TraitObject::new(x)
-            })
-        };
+            }
+        );
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().into() } == eq);
-
+        assert!(s.t_ref().as_ref() == eq);
+    
         #[inline(never)]
         fn force_move<T>(t: T) -> T {
             t
         }
 
-        let s = force_move(s);
+        let mut s = force_move(s);
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
-        let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().into() } == eq);
+        assert!(s.t_ref().as_ref() == eq);
     }
 
+    #[test]
     #[cfg(not(feature = "no_std"))]
-    fn check_trait_object_after_move() {
+    fn check_trait_object_after_move_heap() {
         use std::fmt::Display;
 
-        let s = unsafe {
-            SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new([0, 1, 2, 3, 4], |x| {
+        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+            [0, 1, 2, 3, 4],
+            |x| unsafe {
+                let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
                 TraitObject::new(x)
-            })
-        };
+            }
+        );
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().into() } == eq);
+        assert!(unsafe { s.t_ref().as_ref() } == eq);
 
         let s = Box::new(s);
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().into() } == eq);
+        assert!(unsafe { s.t_ref().as_ref() } == eq);
     }
 }
