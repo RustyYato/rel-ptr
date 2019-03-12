@@ -130,6 +130,7 @@ mod nightly;
 
 mod traits;
 mod error;
+mod fmt;
 
 #[cfg(feature = "nightly")]
 pub use self::nightly::*;

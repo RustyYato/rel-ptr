@@ -10,6 +10,8 @@ pub struct IntegerDeltaError(pub(crate) IntegerDeltaErrorImpl);
 pub(crate) enum IntegerDeltaErrorImpl {
     Conversion(isize),
     Sub(usize, usize),
+
+    #[cfg(feature = "nightly")]
     InvalidNonZero
 }
 
@@ -31,6 +33,8 @@ mod fmt {
                 IntegerDeltaErrorImpl::Sub(a, b) => {
                     write!(f, "Difference is beween {} and {} overflows `isize`", a, b)
                 },
+                
+                #[cfg(feature = "nightly")]
                 IntegerDeltaErrorImpl::InvalidNonZero => {
                     write!(f, "Difference was zero when a `NonZero*` type was specified")
                 }
