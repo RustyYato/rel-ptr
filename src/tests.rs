@@ -161,7 +161,7 @@ mod nightly {
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
-                TraitObject::new(x)
+                TraitObject::from_mut(x)
             }
         );
 
@@ -177,7 +177,7 @@ mod nightly {
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
-                TraitObject::new(x)
+                TraitObject::from_mut(x)
             }
         );
 
@@ -205,7 +205,7 @@ mod nightly {
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
-                TraitObject::new(x)
+                TraitObject::from_mut(x)
             }
         );
 

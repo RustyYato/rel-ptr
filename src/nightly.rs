@@ -41,7 +41,29 @@ impl<T: ?Sized> TraitObject<T> {
      * 
      * This is only safe if `T` is a trait object
      */
-    pub unsafe fn new(t: &mut T) -> &mut Self {
+    pub unsafe fn from_ptr(t: *mut T) -> *mut Self {
+        Trans::<*mut T, *mut Self> { t: t as _ }.u
+    }
+
+    /**
+     * make a new `TraitObject` for use in `RelPtr`
+     * 
+     * # Safety
+     * 
+     * This is only safe if `T` is a trait object
+     */
+    pub unsafe fn from_ref(t: &T) -> &Self {
+        Trans::<&T, &Self> { t: t as _ }.u
+    }
+
+    /**
+     * make a new `TraitObject` for use in `RelPtr`
+     * 
+     * # Safety
+     * 
+     * This is only safe if `T` is a trait object
+     */
+    pub unsafe fn from_mut(t: &mut T) -> &mut Self {
         &mut *(Trans::<*mut T, *mut Self> { t: t as _ }.u)
     }
 
