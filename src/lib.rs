@@ -132,10 +132,15 @@ mod traits;
 mod error;
 mod fmt;
 
+/// Will be replaced with core::mem::MaybeUninit when it stabilizes
+mod maybe_uninit;
+
 #[cfg(feature = "nightly")]
 pub use self::nightly::*;
 pub use self::traits::*;
 pub use self::error::*;
+
+use self::maybe_uninit::*;
 
 use std::marker::PhantomData;
 use std::ptr::NonNull;
@@ -218,7 +223,7 @@ impl_delta_zeroable! { i8, i16, i32, i64, i128, isize }
  * unsafe thing and the `RelPtr<String>` in `UnsafeThing` could be changed. This will result in UB if you try to access
  * String inside of `UnsafeThing` even if you enforce drop order!
 */
-pub struct RelPtr<T: ?Sized + MetaData, I: Delta = isize>(I, T::Data, PhantomData<*mut T>);
+pub struct RelPtr<T: ?Sized + MetaData, I: Delta = isize>(I, MaybeUninit<T::Data>, PhantomData<*mut T>);
 
 // Ergonomics and ptr like impls
 
@@ -238,7 +243,7 @@ impl<T: ?Sized + MetaData, I: Delta> PartialEq for RelPtr<T, I> {
 
 impl<T: ?Sized + MetaData, I: Delta> From<I> for RelPtr<T, I> {
     fn from(i: I) -> Self {
-        Self(i, <T as MetaData>::Data::default(), PhantomData)
+        Self(i, MaybeUninit::null(), PhantomData)
     }
 }
 
@@ -250,7 +255,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline(always)]
     pub fn null() -> Self {
-        Self(I::NULL, <T as MetaData>::Data::default(), PhantomData)
+        Self(I::NULL, MaybeUninit::null(), PhantomData)
     }
 
     /**
@@ -274,7 +279,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
         let (ptr, meta) = T::decompose(value);
 
         self.0 = I::sub(ptr, self as *mut Self as _)?;
-        self.1 = meta;
+        self.1.set(meta);
 
         Ok(())
     }
@@ -294,7 +299,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
         let (ptr, meta) = T::decompose(&mut *value);
 
         self.0 = I::sub_unchecked(ptr, self as *mut Self as _);
-        self.1 = meta;
+        self.1.set(meta);
     }
 
     /**
@@ -306,18 +311,18 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * calling this function and that the value pointed to does not change it's
      * offset relative to `RelPtr`
      *
-     * if `RelPtr::set` was never called successfully, this function is UB
+     * if relative pointer was never set successfully, this function is UB
      */
     #[inline]
     pub unsafe fn as_raw_unchecked(&self) -> *mut T {
-        T::compose(self.0.add(self as *const Self as _) as _, self.1)
+        T::compose(self.0.add(self as *const Self as _) as _, self.1.get())
     }
 
     /**
      * Converts the relative pointer into a normal raw pointer
-     *
+     * 
      * # Safety
-     *
+     * 
      * Same as `RelPtr::as_raw_unchecked`
      */
     #[inline]
@@ -327,9 +332,9 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
 
     /**
      * Gets a reference from the relative pointer
-     *
+     * 
      * # Safety
-     *
+     * 
      * Same as `RelPtr::as_raw_unchecked`
      */
     #[inline]
@@ -353,39 +358,40 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
 impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     /**
      * Converts the relative pointer into a normal raw pointer
-     *
+     * 
      * Note: if `self.is_null()` then a null pointer will be returned
-     *
+     * 
      * # Safety
-     *
+     * 
      * You must ensure that if the relative pointer was successfully set then 
      * the value pointed to does not change it's offset relative to `RelPtr`
-     *
+     * 
      * if the relative pointer was not successfully set `RelPtr::as_raw` returns null,
-     * this function is safe for all types except for trait objects
-     * because the only way to construct a `RelPtr` is to make a null ptr and change it
-     * through `RelPtr::set`, but with trait objects it is impossible to create a v-table
-     * so it will have an invalid v-table (which is UB)
+     * this function is safe for all types where `size_of::<<T as MetaData>::Data> == 0`,
+     * otherwise this function is UB
      */
     #[inline]
     pub unsafe fn as_raw(&self) -> *mut T {
-        if self.is_null() {
-            T::compose(std::ptr::null_mut(), T::Data::default())
-        } else {
-            self.as_raw_unchecked()
-        }
+        std::mem::transmute::<Option<NonNull<T>>, *mut T>(self.as_non_null())
     }
 
     /**
      * Converts the relative pointer into a normal raw pointer
      *
      * # Safety
-     *
-     * Same as `RelPtr::as_raw`
+     * 
+     * You must ensure that if the relative pointer was successfully set then 
+     * the value pointed to does not change it's offset relative to `RelPtr`
+     * 
+     * if the relative pointer was never successfully set `RelPtr::as_non_null` returns None,
      */
     #[inline]
     pub unsafe fn as_non_null(&self) -> Option<NonNull<T>> {
-        self.as_ref().map(NonNull::from)
+        if self.is_null() {
+            None
+        } else {
+            NonNull::new(self.as_raw_unchecked())
+        }
     }
 
     /**
@@ -394,25 +400,31 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      * returned
      *
      * # Safety
-     *
-     * Same as `RelPtr::as_raw`
+     * 
+     * You are not allows to alias another mutable reference,
+     * as per the aliasing rules of references
+     * 
+     * Same as `RelPtr::as_non_null`
      */
     #[inline]
     pub unsafe fn as_ref(&self) -> Option<&T> {
-        <*mut T>::as_ref(self.as_raw())
+        Some(&*self.as_non_null()?.as_ptr())
     }
 
     /**
-     * Gets a mutable reference from the relative pointer,
+     * Gets a reference from the relative pointer,
      * if the relative pointer is null, then `None` is
-     * returned
+     * returned 
      *
      * # Safety
-     *
-     * Same as `RelPtr::as_raw`
+     * 
+     * You are not allows to alias this mutable reference,
+     * as per the aliasing rules of references
+     * 
+     * Same as `RelPtr::as_non_null`
      */
     #[inline]
     pub unsafe fn as_mut(&mut self) -> Option<&mut T> {
-        <*mut T>::as_mut(self.as_raw())
+        Some(&mut *self.as_non_null()?.as_ptr())
     }
 }

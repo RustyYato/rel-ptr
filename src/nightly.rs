@@ -9,7 +9,7 @@ union Trans<T: Copy, U: Copy> {
 }
 
 unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
-    type Data = Ptr;
+    type Data = *mut ();
 
     #[inline]
     fn decompose(t: &mut Self) -> (*mut u8, Self::Data) {
@@ -20,34 +20,20 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
                 u: TORepr { data, vtable },
             } = repr;
 
-            (data as _, Ptr(vtable))
+            (data as _, vtable)
         }
     }
 
     #[inline]
-    unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self {
+    unsafe fn compose(ptr: *mut u8, vtable: Self::Data) -> *mut Self {
         let repr = Trans {
             u: TORepr {
                 data: ptr as _,
-                vtable: data.0,
+                vtable,
             },
         };
 
         repr.t
-    }
-}
-
-/**
- * A opaque pointer that implements default
- *
- * for internal use only
- */
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Ptr(*mut ());
-
-impl Default for Ptr {
-    fn default() -> Self {
-        Self(std::ptr::null_mut())
     }
 }
 

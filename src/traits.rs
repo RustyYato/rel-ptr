@@ -97,7 +97,7 @@ pub trait Nullable: Delta {
  */
 pub unsafe trait MetaData {
     /// the type of meta data a type carries
-    type Data: Default + Copy + Eq;
+    type Data: Copy + Eq;
 
     /// decompose a type into a thin pointer and some metadata
     fn decompose(this: &mut Self) -> (*mut u8, Self::Data);
@@ -105,8 +105,8 @@ pub unsafe trait MetaData {
     /// recompose a type from a thin pointer and some metadata
     ///
     /// it is guarenteed that the metadata is
-    /// * `MetaData::Data::default()` if `ptr == null`
-    /// * generated from `MetaData::decompose`
+    /// * `ptr == null` `Self::Data` is undefined
+    /// * `ptr != null` generated from `MetaData::decompose`
     unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self;
 }
 

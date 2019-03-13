@@ -144,7 +144,8 @@ fn sub_str() {
 #[test]
 fn check_copy() {
     fn is_copy<T: Copy>() {}
-
+    
+    #[allow(unused, path_statements)]
     fn check<T: ?Sized + MetaData, I: Delta>() {
         is_copy::<RelPtr<T, I>>;
     }
@@ -158,7 +159,7 @@ mod nightly {
     fn check_trait_object_simple() {
         use std::fmt::Display;
 
-        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+        let s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
@@ -176,7 +177,7 @@ mod nightly {
     fn check_trait_object_after_move() {
         use std::fmt::Display;
 
-        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+        let s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);
@@ -217,13 +218,13 @@ mod nightly {
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().as_ref() } == eq);
+        assert!(s.t_ref().as_ref() == eq);
 
         let s = Box::new(s);
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
         let eq: &[u8] = &[2, 3, 4];
-        assert!(unsafe { s.t_ref().as_ref() } == eq);
+        assert!(s.t_ref().as_ref() == eq);
     }
 }
