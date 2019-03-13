@@ -1,3 +1,7 @@
+/*!
+ * A shim that will be replaced with std::mem::MaybeUninit<T> once that stablizes
+ */
+
 pub(super) union MaybeUninit<T: Copy> {
     value: T,
     null: ()

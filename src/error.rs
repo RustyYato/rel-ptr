@@ -6,11 +6,17 @@
 #[derive(Debug)]
 pub struct IntegerDeltaError(pub(crate) IntegerDeltaErrorImpl);
 
+/// All types of errors, this is internal and so protected
+/// behind a wrapper struct
 #[derive(Debug)]
 pub(crate) enum IntegerDeltaErrorImpl {
+    /// Failed to convert isize to given integer type
     Conversion(isize),
+    
+    /// Failed to subtract the two usizes (overflowed isize)
     Sub(usize, usize),
 
+    /// Got a zero when a non-zero value was expected (for `NonZero*`)
     #[cfg(feature = "nightly")]
     InvalidNonZero
 }

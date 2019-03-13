@@ -132,7 +132,6 @@ mod traits;
 mod error;
 mod fmt;
 
-/// Will be replaced with core::mem::MaybeUninit when it stabilizes
 mod maybe_uninit;
 
 #[cfg(feature = "nightly")]
@@ -187,6 +186,9 @@ macro_rules! impl_delta_zeroable {
 
 impl_delta_zeroable! { i8, i16, i32, i64, i128, isize }
 
+/// It is always safe to cast between a 
+/// `Option<NonNull<T>>` and a `*mut T`
+/// because they are the exact same in memory
 #[inline(always)]
 fn nn_to_ptr<T: ?Sized>(nn: Ptr<T>) -> *mut T {
     unsafe { std::mem::transmute(nn) }
@@ -247,6 +249,7 @@ impl<T: ?Sized + MetaData, I: Delta> PartialEq for RelPtr<T, I> {
     }
 }
 
+/// Convert an offset into a `RelPtr`
 impl<T: ?Sized + MetaData, I: Delta> From<I> for RelPtr<T, I> {
     fn from(i: I) -> Self {
         Self(i, MaybeUninit::null(), PhantomData)
@@ -256,17 +259,13 @@ impl<T: ?Sized + MetaData, I: Delta> From<I> for RelPtr<T, I> {
 // Core api
 
 impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
-    /**
-     * A null relative pointer has an offset of 0, (points to itself)
-     */
+    /// A null relative pointer has an offset of 0, (points to itself)
     #[inline(always)]
     pub fn null() -> Self {
         Self(I::NULL, MaybeUninit::null(), PhantomData)
     }
 
-    /**
-     * Check if relative pointer is null
-     */
+    /// Check if relative pointer is null
     #[inline(always)]
     pub fn is_null(&self) -> bool {
         self.0 == I::NULL
@@ -275,7 +274,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
 
 impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     /**
-     * set the offset of a relative pointer,
+     * Set the offset of a relative pointer,
      * if the offset cannot be calculated using the given
      * `Delta`, then `Err` will be returned, and there will be
      * **no** change to the offset
@@ -289,7 +288,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     }
 
     /**
-     * set the offset of a relative pointer,
+     * Set the offset of a relative pointer,
      *
      * # Safety
      *

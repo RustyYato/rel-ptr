@@ -3,6 +3,7 @@ use core::num::*;
 
 use super::{MetaData, IntegerDeltaError, IntegerDeltaErrorImpl, Delta, Ptr};
 
+/// Union to reinterpret bits
 union Trans<T: Copy, U: Copy> {
     t: T,
     u: U,
@@ -27,6 +28,8 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     }
 }
 
+/// This takes the place of any trait, this is to allow
+/// generalizing over all trait objects
 trait Trait<T: ?Sized> {}
 
 /**
@@ -34,8 +37,29 @@ trait Trait<T: ?Sized> {}
  * 
  * You can use trait objects with `RelPtr` like so,
  * 
- * ```
- * type RelPtrTO = RelPtr<dyn TraitObject<dyn std::any::Any>>;
+ * ```rust
+ *  fn main() {
+ *      use rel_ptr::{RelPtr, TraitObject};
+ *      
+ *      type RelPtrTO = RelPtr<TraitObject<dyn std::any::Any>>;
+ *      
+ *      // value to store in `RelPtr`
+ *      let mut value: [u8; 10] = [0; 10];
+ *      
+ *      // setup `RelPtr`
+ *      let mut ptr: RelPtrTO = RelPtr::null();
+ *  
+ *      // This is safe because `dyn std::any::Any` is a trait object
+ *      // make `&mut TraitObject<dyn std::any::Any>`
+ *      let to = unsafe { TraitObject::from_mut(
+ *          &mut value as &mut dyn std::any::Any
+ *      ) };
+ *      
+ *      // set `RelPtr`
+ *      ptr.set(to);
+ * 
+ *      // ... use `RelPtr`
+ *  }
  * ```
  * 
  * # Safety

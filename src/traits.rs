@@ -115,6 +115,7 @@ pub unsafe trait MetaData {
     unsafe fn compose(ptr: Ptr<u8>, data: Self::Data) -> Ptr<Self>;
 }
 
+// Thin pointers
 unsafe impl<T> MetaData for T {
     type Data = ();
 
@@ -127,6 +128,7 @@ unsafe impl<T> MetaData for T {
     }
 }
 
+// slices = ptr + len
 unsafe impl<T> MetaData for [T] {
     type Data = usize;
 
@@ -146,6 +148,7 @@ unsafe impl<T> MetaData for [T] {
     }
 }
 
+// str slices = ptr + len
 unsafe impl MetaData for str {
     type Data = usize;
 
