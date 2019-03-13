@@ -29,22 +29,23 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
 
 trait Trait<T: ?Sized> {}
 
-/// `TraitObject` represents a trait object generically
+/**
+ * `TraitObject` represents a trait object generically
+ * 
+ * You can use trait objects with `RelPtr` like so,
+ * 
+ * ```
+ * type RelPtrTO = RelPtr<dyn TraitObject<dyn std::any::Any>>;
+ * ```
+ * 
+ * # Safety
+ * 
+ * It is unsafe to use TraitObject with anything other than an actual trait object
+ */
 #[repr(transparent)]
 pub struct TraitObject<T: ?Sized>(dyn Trait<T>);
 
 impl<T: ?Sized> TraitObject<T> {
-    /**
-     * make a new `TraitObject` for use in `RelPtr`
-     * 
-     * # Safety
-     * 
-     * This is only safe if `T` is a trait object
-     */
-    pub unsafe fn from_ptr(t: *mut T) -> *mut Self {
-        Trans::<*mut T, *mut Self> { t: t as _ }.u
-    }
-
     /**
      * make a new `TraitObject` for use in `RelPtr`
      * 
