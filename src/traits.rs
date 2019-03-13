@@ -119,9 +119,7 @@ unsafe impl<T> MetaData for T {
     type Data = ();
 
     #[inline]
-    fn data(_: &Self) -> Self::Data {
-        ()
-    }
+    fn data(_: &Self) -> Self::Data {}
 
     #[inline]
     unsafe fn compose(ptr: Ptr<u8>, (): Self::Data) -> Ptr<Self> {

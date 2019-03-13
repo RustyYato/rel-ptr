@@ -375,7 +375,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      * the value pointed to does not change it's offset relative to `RelPtr`
      * 
      * if the relative pointer was not successfully set `RelPtr::as_raw` returns null,
-     * this function is safe for all types where `size_of::<<T as MetaData>::Data> == 0`,
+     * this function is safe for all types where `size_of::<*mut T>() == size_of::<usize>()`,
      * otherwise this function is UB
      */
     #[inline]
