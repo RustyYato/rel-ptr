@@ -18,14 +18,12 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
 
     #[inline]
     unsafe fn compose(ptr: Ptr<u8>, vtable: Self::Data) -> Ptr<Self> {
-        let repr = Trans {
+        Trans {
             u: TORepr {
-                data: crate::nn_to_ptr(ptr) as *mut (),
+                data: ptr?.as_ptr() as *mut (),
                 vtable,
             },
-        };
-
-        repr.t
+        }.t
     }
 }
 

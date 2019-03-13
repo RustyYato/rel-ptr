@@ -110,8 +110,8 @@ pub unsafe trait MetaData {
     /// recompose a type from a thin pointer and some metadata
     ///
     /// it is guarenteed that the metadata is
-    /// * `ptr == null` `Self::Data` is undefined
-    /// * `ptr != null` generated from `MetaData::decompose`
+    /// * `ptr == None` `Self::Data` is undefined
+    /// * `ptr != None` generated from `MetaData::data`
     unsafe fn compose(ptr: Ptr<u8>, data: Self::Data) -> Ptr<Self>;
 }
 
