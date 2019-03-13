@@ -144,6 +144,7 @@ use self::maybe_uninit::*;
 
 use std::marker::PhantomData;
 use std::ptr::NonNull;
+use unreachable::UncheckedOptionExt;
 
 macro_rules! impl_delta_zeroable {
     ($($type:ty),* $(,)?) => {$(
@@ -185,6 +186,11 @@ macro_rules! impl_delta_zeroable {
 }
 
 impl_delta_zeroable! { i8, i16, i32, i64, i128, isize }
+
+#[inline(always)]
+fn nn_to_ptr<T: ?Sized>(nn: Ptr<T>) -> *mut T {
+    unsafe { std::mem::transmute(nn) }
+}
 
 /**
  * This represents a relative pointers
@@ -276,10 +282,8 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub fn set(&mut self, value: &mut T) -> Result<(), I::Error> {
-        let (ptr, meta) = T::decompose(value);
-
-        self.0 = I::sub(ptr, self as *mut Self as _)?;
-        self.1.set(meta);
+        self.0 = I::sub(value as *mut T as _, self as *mut Self as _)?;
+        self.1.set(T::data(value));
 
         Ok(())
     }
@@ -296,10 +300,8 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn set_unchecked(&mut self, value: *mut T) {
-        let (ptr, meta) = T::decompose(&mut *value);
-
-        self.0 = I::sub_unchecked(ptr, self as *mut Self as _);
-        self.1.set(meta);
+        self.0 = I::sub_unchecked(value as *mut T as _, self as *mut Self as _);
+        self.1.set(T::data(&*value));
     }
 
     /**
@@ -315,7 +317,10 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_raw_unchecked(&self) -> *mut T {
-        T::compose(self.0.add(self as *const Self as _) as _, self.1.get())
+        nn_to_ptr(T::compose(
+            NonNull::new(self.0.add(self as *const Self as *const u8)),
+            self.1.get()
+        ))
     }
 
     /**
@@ -327,7 +332,10 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_non_null_unchecked(&mut self) -> NonNull<T> {
-        NonNull::new_unchecked(self.as_raw_unchecked())
+        T::compose(
+            NonNull::new(self.0.add(self as *const Self as *const u8)),
+            self.1.get()
+        ).unchecked_unwrap()
     }
 
     /**
@@ -372,7 +380,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_raw(&self) -> *mut T {
-        std::mem::transmute::<Option<NonNull<T>>, *mut T>(self.as_non_null())
+        nn_to_ptr(self.as_non_null())
     }
 
     /**
@@ -390,7 +398,10 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
         if self.is_null() {
             None
         } else {
-            NonNull::new(self.as_raw_unchecked())
+            T::compose(
+                NonNull::new(self.0.add(self as *const Self as *const u8)),
+                self.1.get()
+            )
         }
     }
 

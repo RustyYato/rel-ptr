@@ -1,4 +1,9 @@
 
+use std::ptr::NonNull;
+
+/// A nullable pointer, using NonNull<T>
+pub type Ptr<T> = Option<NonNull<T>>;
+
 /**
  * `Delta` trait generalizes differences in
  * memory locations to types like i8 and i16
@@ -100,27 +105,27 @@ pub unsafe trait MetaData {
     type Data: Copy + Eq;
 
     /// decompose a type into a thin pointer and some metadata
-    fn decompose(this: &mut Self) -> (*mut u8, Self::Data);
+    fn data(this: &Self) -> Self::Data;
 
     /// recompose a type from a thin pointer and some metadata
     ///
     /// it is guarenteed that the metadata is
     /// * `ptr == null` `Self::Data` is undefined
     /// * `ptr != null` generated from `MetaData::decompose`
-    unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self;
+    unsafe fn compose(ptr: Ptr<u8>, data: Self::Data) -> Ptr<Self>;
 }
 
 unsafe impl<T> MetaData for T {
     type Data = ();
 
     #[inline]
-    fn decompose(this: &mut Self) -> (*mut u8, Self::Data) {
-        (this as *mut Self as _, ())
+    fn data(_: &Self) -> Self::Data {
+        ()
     }
 
     #[inline]
-    unsafe fn compose(ptr: *mut u8, (): Self::Data) -> *mut Self {
-        ptr as _
+    unsafe fn compose(ptr: Ptr<u8>, (): Self::Data) -> Ptr<Self> {
+        ptr.map(NonNull::cast)
     }
 }
 
@@ -128,13 +133,18 @@ unsafe impl<T> MetaData for [T] {
     type Data = usize;
 
     #[inline]
-    fn decompose(this: &mut Self) -> (*mut u8, Self::Data) {
-        (this.as_ptr() as _, this.len())
+    fn data(this: &Self) -> Self::Data {
+        this.len()
     }
 
     #[inline]
-    unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self {
-        std::slice::from_raw_parts_mut(ptr as _, data)
+    unsafe fn compose(ptr: Ptr<u8>, data: Self::Data) -> Ptr<Self> {
+        Some(NonNull::from(
+            std::slice::from_raw_parts_mut(
+                ptr?.as_ptr() as *mut T,
+                data
+            )
+        ))
     }
 }
 
@@ -142,13 +152,17 @@ unsafe impl MetaData for str {
     type Data = usize;
 
     #[inline]
-    fn decompose(this: &mut Self) -> (*mut u8, Self::Data) {
-        (this.as_ptr() as _, this.len())
+    fn data(this: &Self) -> Self::Data {
+        this.len()
     }
 
     #[inline]
-    unsafe fn compose(ptr: *mut u8, data: Self::Data) -> *mut Self {
-        std::str::from_utf8_unchecked_mut(std::slice::from_raw_parts_mut(ptr as _, data)) as *mut Self
-            as _
+    unsafe fn compose(ptr: Ptr<u8>, data: Self::Data) -> Ptr<Self> {
+        Some(NonNull::from(
+            std::str::from_utf8_unchecked_mut(std::slice::from_raw_parts_mut(
+                ptr?.as_ptr(),
+                data
+            ))
+        ))
     }
 }

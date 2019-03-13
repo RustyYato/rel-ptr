@@ -157,8 +157,6 @@ mod nightly {
     
     #[test]
     fn check_trait_object_simple() {
-        use std::fmt::Display;
-
         let s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
             [0, 1, 2, 3, 4],
             |x| unsafe {
@@ -175,8 +173,6 @@ mod nightly {
 
     #[test]
     fn check_trait_object_after_move() {
-        use std::fmt::Display;
-
         let s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
             [0, 1, 2, 3, 4],
             |x| unsafe {
@@ -195,7 +191,7 @@ mod nightly {
             t
         }
 
-        let mut s = force_move(s);
+        let s = force_move(s);
 
         assert_eq!(*s.t(), [0, 1, 2, 3, 4]);
 
@@ -205,9 +201,7 @@ mod nightly {
     #[test]
     #[cfg(not(feature = "no_std"))]
     fn check_trait_object_after_move_heap() {
-        use std::fmt::Display;
-
-        let mut s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
+        let s = SelfRef::<[u8; 5], TraitObject<dyn PartialEq<[u8]>>>::new(
             [0, 1, 2, 3, 4],
             |x| unsafe {
                 let x = &mut *(&mut x[2..] as *mut [u8] as *mut [u8; 3]);

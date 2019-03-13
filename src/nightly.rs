@@ -1,7 +1,7 @@
 use std::raw::TraitObject as TORepr;
 use core::num::*;
 
-use super::{MetaData, IntegerDeltaError, IntegerDeltaErrorImpl, Delta};
+use super::{MetaData, IntegerDeltaError, IntegerDeltaErrorImpl, Delta, Ptr};
 
 union Trans<T: Copy, U: Copy> {
     t: T,
@@ -12,23 +12,15 @@ unsafe impl<T: ?Sized> MetaData for TraitObject<T> {
     type Data = *mut ();
 
     #[inline]
-    fn decompose(t: &mut Self) -> (*mut u8, Self::Data) {
-        let repr = Trans { t: t as *mut Self };
-
-        unsafe {
-            let Trans {
-                u: TORepr { data, vtable },
-            } = repr;
-
-            (data as _, vtable)
-        }
+    fn data(t: &Self) -> Self::Data {
+        unsafe { Trans::<&Self, TORepr> { t }.u.vtable }
     }
 
     #[inline]
-    unsafe fn compose(ptr: *mut u8, vtable: Self::Data) -> *mut Self {
+    unsafe fn compose(ptr: Ptr<u8>, vtable: Self::Data) -> Ptr<Self> {
         let repr = Trans {
             u: TORepr {
-                data: ptr as _,
+                data: crate::nn_to_ptr(ptr) as *mut (),
                 vtable,
             },
         };
