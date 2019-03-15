@@ -174,7 +174,7 @@ macro_rules! impl_delta_zeroable {
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
-                <*mut u8>::offset(a as _, self as isize) as *mut u8
+                <*const u8>::offset(a, self as isize) as *mut u8
             }
         }
 
@@ -315,11 +315,27 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      * if relative pointer was never set successfully, this function is UB
      */
     #[inline]
-    pub unsafe fn as_raw_unchecked(&self) -> *mut T {
+    unsafe fn as_raw_unchecked_impl(&self) -> *const T {
         nn_to_ptr(T::compose(
             NonNull::new(self.0.add(self as *const Self as *const u8)),
             self.1.get()
         ))
+    }
+
+    /**
+     * Converts the relative pointer into a normal raw pointer
+     *
+     * # Safety
+     *
+     * You must ensure that the relative pointer was successfully set before
+     * calling this function and that the value pointed to does not change it's
+     * offset relative to `RelPtr`
+     *
+     * if relative pointer was never set successfully, this function is UB
+     */
+    #[inline]
+    pub unsafe fn as_raw_unchecked(&mut self) -> *mut T {
+        self.as_raw_unchecked_impl() as _
     }
 
     /**
@@ -332,7 +348,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     #[inline]
     pub unsafe fn as_non_null_unchecked(&mut self) -> NonNull<T> {
         T::compose(
-            NonNull::new(self.0.add(self as *const Self as *const u8)),
+            NonNull::new(self.0.add(self as *mut Self as *mut u8)),
             self.1.get()
         ).unchecked_unwrap()
     }
@@ -346,7 +362,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_ref_unchecked(&self) -> &T {
-        &*self.as_raw_unchecked()
+        &*self.as_raw_unchecked_impl()
     }
 
     /**
@@ -365,6 +381,28 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
 impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     /**
      * Converts the relative pointer into a normal raw pointer
+     *
+     * # Safety
+     * 
+     * You must ensure that if the relative pointer was successfully set then 
+     * the value pointed to does not change it's offset relative to `RelPtr`
+     * 
+     * if the relative pointer was never successfully set `RelPtr::as_non_null` returns None,
+     */
+    #[inline]
+    unsafe fn as_non_null_impl(&self) -> Ptr<T> {
+        if self.is_null() {
+            None
+        } else {
+            T::compose(
+                NonNull::new(self.0.add(self as *const Self as *const u8)),
+                self.1.get()
+            )
+        }
+    }
+
+    /**
+     * Converts the relative pointer into a normal raw pointer
      * 
      * Note: if `self.is_null()` then a null pointer will be returned
      * 
@@ -378,7 +416,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      * otherwise this function is UB
      */
     #[inline]
-    pub unsafe fn as_raw(&self) -> *mut T {
+    pub unsafe fn as_raw(&mut self) -> *mut T {
         nn_to_ptr(self.as_non_null())
     }
 
@@ -393,15 +431,8 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      * if the relative pointer was never successfully set `RelPtr::as_non_null` returns None,
      */
     #[inline]
-    pub unsafe fn as_non_null(&self) -> Option<NonNull<T>> {
-        if self.is_null() {
-            None
-        } else {
-            T::compose(
-                NonNull::new(self.0.add(self as *const Self as *const u8)),
-                self.1.get()
-            )
-        }
+    pub unsafe fn as_non_null(&mut self) -> Ptr<T> {
+        self.as_non_null_impl()
     }
 
     /**
@@ -418,7 +449,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_ref(&self) -> Option<&T> {
-        Some(&*self.as_non_null()?.as_ptr())
+        Some(&*self.as_non_null_impl()?.as_ptr())
     }
 
     /**

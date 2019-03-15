@@ -85,7 +85,9 @@ pub unsafe trait Delta: Copy + Eq {
 /// 
 /// ```ignore
 /// fn for_all_a(a: *mut u8) {
-///     assert_eq!(a, Self::add(Self::NULL, a))
+///     assert_eq!(a, <Self as Delta>::add(Self::NULL, a));
+///     assert_eq!(Self::NULL, <Self as Delta>::sub(a, a));
+///     assert_eq!(Self::NULL, <Self as Delta>::sub_unchecked(a, a));
 /// }
 /// ```
 pub trait Nullable: Delta {
