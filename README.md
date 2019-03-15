@@ -113,6 +113,30 @@ set the relative pointer directly, and we cannot change the offsets of the field
 ---
 # Release Notes
 
+## 0.2.0
+
+### Additions
+
+ * Added constructors on `TraitObject`, now there is `from_ref` and `from_mut` to allow easier transitions to and from `TraitObject`
+ * More documentation
+
+### Removals
+
+ * `Default` bound for `MetaData::Data`
+    * It is now UB to access `MetaData::Data` before the relative pointer is set
+ * `TraitObject::new` in favor of the new constructors
+
+### Changes
+
+ * Reworked `MetaData::decompose`
+    * Chagned to `MetaData::data`, the pointer can be extracted via pointer casts, so only data was needed
+ * Converted `MetaData` to use `std::mem::NonNull` as it is easier to work with
+    * This is due to using `Option<NonNull<T>>` allows representing null even if `T: !Sized`
+
+### Notes
+
+I am not anticipating any more large scale changes to the api, so this should be as the final api. I will wait and see if any there are any bugs, before releasing 1.0.0. I will also have to wait on the results of [this](https://github.com/rust-lang/unsafe-code-guidelines/issues/97) github discussion around the layouts of types, as it relates to how safe this model of moveable self-referential types are.
+
 ## 0.1.4
 
 ### Additions
