@@ -113,6 +113,17 @@ set the relative pointer directly, and we cannot change the offsets of the field
 ---
 # Release Notes
 
+## 0.2.1
+
+### Additions
+
+ * Documentation on `Nullable` and how it plays with `Delta`
+
+### Changes
+ 
+ * Fixed mutability bug, getting a raw ptr (`*mut T`) or a non-nullable ptr (`NonNull<T>`) should require a unique lock on `RelPtr`
+
+
 ## 0.2.0
 
 ### Additions
@@ -143,9 +154,6 @@ I am not anticipating any more large scale changes to the api, so this should be
 
  * Support for `NonZero*` integers
  * Formatting for all `RelPtr` whose idicies support formatting
- 
-### Removals
-
  
 ### Changes
 

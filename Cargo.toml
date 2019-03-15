@@ -1,6 +1,6 @@
 [package]
 name = "rel-ptr"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ozaren <krishna.sd.2012@gmail.com>"]
 repository = "https://github.com/KrishnaSannasi/rel-ptr"
 description = "A tool for building movable self-referential types"
