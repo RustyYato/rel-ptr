@@ -2,6 +2,7 @@ use std::raw::TraitObject as TORepr;
 use core::num::*;
 
 use super::{MetaData, IntegerDeltaError, IntegerDeltaErrorImpl, Delta, Ptr};
+use crate::unreachable::UncheckedOptionExt as _;
 
 /// Union to reinterpret bits
 union Trans<T: Copy, U: Copy> {
@@ -128,8 +129,6 @@ macro_rules! impl_delta_nonzero {
             }
 
             unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
-                use unreachable::UncheckedOptionExt;
-
                 Self::new_unchecked(isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _)
             }
 

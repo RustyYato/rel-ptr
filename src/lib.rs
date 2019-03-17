@@ -133,6 +133,7 @@ mod error;
 mod fmt;
 
 mod maybe_uninit;
+mod unreachable;
 
 #[cfg(feature = "nightly")]
 pub use self::nightly::*;
@@ -143,7 +144,7 @@ use self::maybe_uninit::*;
 
 use std::marker::PhantomData;
 use std::ptr::NonNull;
-use unreachable::UncheckedOptionExt;
+use crate::unreachable::UncheckedOptionExt as _;
 
 macro_rules! impl_delta_zeroable {
     ($($type:ty),* $(,)?) => {$(
@@ -168,8 +169,6 @@ macro_rules! impl_delta_zeroable {
             }
 
             unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
-                use unreachable::UncheckedOptionExt;
-
                 isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _
             }
 
