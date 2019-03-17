@@ -7,10 +7,14 @@ pub trait UncheckedOptionExt {
 impl<T> UncheckedOptionExt for Option<T> {
     type T = T;
     
+    #[allow(clippy::assertions_on_constants)]
     unsafe fn unchecked_unwrap(self) -> T {
         match self {
             Some(value) => value,
-            None => std::hint::unreachable_unchecked()
+            None => {
+                debug_assert!(false);
+                std::hint::unreachable_unchecked()
+            }
         }
     }
 }
