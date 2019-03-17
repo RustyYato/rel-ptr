@@ -113,6 +113,14 @@ set the relative pointer directly, and we cannot change the offsets of the field
 ---
 # Release Notes
 
+## 0.2.2
+
+### Removals
+
+ * dependency to `unreachable`
+    * unnecessary in the presence of `std::hint::unreachable`, also it is safer to use the `std` version because `std` version is guarenteed to be optimized away
+    * has a different behaviour on debug mode than I want, new impl panics on debug mode and is optimized away on release mode
+
 ## 0.2.1
 
 ### Additions
