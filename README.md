@@ -8,6 +8,8 @@ as a primitive into Jai.
 A relative pointer is a pointer that uses an offset and it's current location to
 calculate where it points to.
 
+Minimum Rust Version = 1.34.0
+
 ## Safety
 
 See the `RelPtr` type docs for safety information
@@ -113,6 +115,12 @@ set the relative pointer directly, and we cannot change the offsets of the field
 ---
 # Release Notes
 
+## 0.2.3
+
+### Changes
+
+ * Moved `NonZero*` out of nightly due to rustc version 1.34.0
+
 ## 0.2.2
 
 ### Removals
@@ -172,4 +180,3 @@ I am not anticipating any more large scale changes to the api, so this should be
  * Updated documentation to better explain possible UB
 
  * Changed from `TraitObject::into` to `TraitObject::as_ref` and `TraitObject::as_mut`
-    * 
