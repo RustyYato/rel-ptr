@@ -17,7 +17,6 @@ pub(crate) enum IntegerDeltaErrorImpl {
     Sub(usize, usize),
 
     /// Got a zero when a non-zero value was expected (for `NonZero*`)
-    #[cfg(feature = "nightly")]
     InvalidNonZero
 }
 
@@ -40,7 +39,6 @@ mod fmt {
                     write!(f, "Difference is beween {} and {} overflows `isize`", a, b)
                 },
                 
-                #[cfg(feature = "nightly")]
                 IntegerDeltaErrorImpl::InvalidNonZero => {
                     write!(f, "Difference was zero when a `NonZero*` type was specified")
                 }
