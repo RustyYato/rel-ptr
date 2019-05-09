@@ -171,7 +171,7 @@ macro_rules! impl_delta_zeroable {
             }
 
             unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
-                isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _
+                isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap(unreachable::OVERFLOW_SUB) as _
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
@@ -212,7 +212,7 @@ macro_rules! impl_delta_nonzero {
             }
 
             unsafe fn sub_unchecked(a: *mut u8, b: *mut u8) -> Self {
-                Self::new_unchecked(isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap() as _)
+                Self::new_unchecked(isize::checked_sub(a as usize as _, b as usize as _).unchecked_unwrap(unreachable::OVERFLOW_SUB) as _)
             }
 
             unsafe fn add(self, a: *const u8) -> *mut u8 {
@@ -388,7 +388,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
         T::compose(
             NonNull::new(self.0.add(self as *mut Self as *mut u8)),
             self.1.get()
-        ).unchecked_unwrap()
+        ).unchecked_unwrap("Tried to use an unset relative pointer, this is UB in release mode!")
     }
 
     /**

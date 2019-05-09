@@ -1,9 +1,11 @@
 
+pub(crate) const OVERFLOW_SUB: &str = "Attempted to subtract with overflow, this is UB in release mode!";
+
 /// Adds an unchecked unwrap, this unwrap is UB if self is None
 pub(crate) trait UncheckedOptionExt {
     type T;
 
-    unsafe fn unchecked_unwrap(self) -> Self::T;
+    unsafe fn unchecked_unwrap(self, err: &str) -> Self::T;
 }
 
 impl<T> UncheckedOptionExt for Option<T> {
@@ -11,11 +13,11 @@ impl<T> UncheckedOptionExt for Option<T> {
     
     #[inline]
     #[allow(clippy::assertions_on_constants)]
-    unsafe fn unchecked_unwrap(self) -> T {
+    unsafe fn unchecked_unwrap(self, err: &str) -> T {
         match self {
             Some(value) => value,
             None if cfg!(debug_assertions) =>
-                panic!("Tried to use an unset relative pointer, this is UB in release mode!"),
+                panic!("{}", err),
             None => std::hint::unreachable_unchecked()
         }
     }
