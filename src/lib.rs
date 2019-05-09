@@ -377,7 +377,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     }
 
     /**
-     * Converts the relative pointer into a normal raw pointer
+     * Converts the relative pointer into a NonNull pointer
      * 
      * # Safety
      * 
@@ -416,29 +416,20 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     }
 }
 
-impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
-    /**
-     * Converts the relative pointer into a normal raw pointer
-     *
-     * # Safety
-     * 
-     * You must ensure that if the relative pointer was successfully set then 
-     * the value pointed to does not change it's offset relative to `RelPtr`
-     * 
-     * if the relative pointer was never successfully set `RelPtr::as_non_null` returns None,
-     */
-    #[inline]
-    unsafe fn as_non_null_impl(&self) -> Ptr<T> {
-        if self.is_null() {
+macro_rules! as_non_null_impl {
+    ($self:ident) => {
+        if $self.is_null() {
             None
         } else {
             T::compose(
-                NonNull::new(self.0.add(self as *const Self as *const u8)),
-                self.1.get()
+                NonNull::new($self.0.add($self as *const Self as *const u8)),
+                $self.1.get()
             )
         }
-    }
+    };
+}
 
+impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     /**
      * Converts the relative pointer into a normal raw pointer
      * 
@@ -459,7 +450,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     }
 
     /**
-     * Converts the relative pointer into a normal raw pointer
+     * Converts the relative pointer into a NonNull pointer
      *
      * # Safety
      * 
@@ -470,7 +461,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_non_null(&mut self) -> Ptr<T> {
-        self.as_non_null_impl()
+        as_non_null_impl!(self)
     }
 
     /**
@@ -487,7 +478,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
      */
     #[inline]
     pub unsafe fn as_ref(&self) -> Option<&T> {
-        Some(&*self.as_non_null_impl()?.as_ptr())
+        Some(&*as_non_null_impl!(self)?.as_ptr())
     }
 
     /**
