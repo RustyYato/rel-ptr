@@ -113,6 +113,23 @@ In `SelfRef::fst` we use `RelPtr::as_ref_unchecked` because it is impossible to 
 set the relative pointer directly, and we cannot change the offsets of the fields of `SelfRef` after the relative pointer is set.
 
 ---
+
+# License
+
+<sup>
+Licensed under either of <a href="APACHE-LICENSE">Apache License, Version
+2.0</a> or <a href="MIT-LICENSE">MIT license</a> at your option.
+</sup>
+
+<br>
+
+<sub>
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in `rel-ptr` by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+</sub>
+
+---
 # Release Notes
 
 ## 0.2.3
