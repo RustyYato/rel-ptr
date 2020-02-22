@@ -8,7 +8,7 @@ as a primitive into Jai.
 A relative pointer is a pointer that uses an offset and it's current location to
 calculate where it points to.
 
-Minimum Rust Version = 1.34.0
+Minimum Rust Version = 1.36.0
 
 ## Safety
 
@@ -131,6 +131,12 @@ dual licensed as above, without any additional terms or conditions.
 
 ---
 # Release Notes
+
+## 0.2.4
+
+### Changes
+
+ * Chaned to `std::mem::MaybeUnint` from a custom version because it is stable now on rustc version 1.36.0
 
 ## 0.2.3
 

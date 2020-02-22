@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "no_std", no_std)]
 #![cfg_attr(feature = "nightly", feature(const_fn, raw))]
+#![allow(clippy::needless_doctest_main)]
 #![forbid(missing_docs)]
 
 /*!
@@ -132,7 +133,6 @@ mod traits;
 mod error;
 mod fmt;
 
-mod maybe_uninit;
 mod unreachable;
 
 #[cfg(feature = "nightly")]
@@ -140,7 +140,7 @@ pub use self::nightly::*;
 pub use self::traits::*;
 pub use self::error::*;
 
-use self::maybe_uninit::*;
+use core::mem::MaybeUninit;
 
 use crate::unreachable::UncheckedOptionExt as _;
 
@@ -290,7 +290,7 @@ impl<T: ?Sized + MetaData, I: Delta> PartialEq for RelPtr<T, I> {
 /// Convert an offset into a `RelPtr`
 impl<T: ?Sized + MetaData, I: Delta> From<I> for RelPtr<T, I> {
     fn from(i: I) -> Self {
-        Self(i, MaybeUninit::null(), PhantomData)
+        Self(i, MaybeUninit::uninit(), PhantomData)
     }
 }
 
@@ -300,7 +300,7 @@ impl<T: ?Sized + MetaData, I: Nullable> RelPtr<T, I> {
     /// A null relative pointer has an offset of 0, (points to itself)
     #[inline(always)]
     pub fn null() -> Self {
-        Self(I::NULL, MaybeUninit::null(), PhantomData)
+        Self(I::NULL, MaybeUninit::uninit(), PhantomData)
     }
 
     /// Check if relative pointer is null
@@ -320,7 +320,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     #[inline]
     pub fn set(&mut self, value: &mut T) -> Result<(), I::Error> {
         self.0 = I::sub(value as *mut T as _, self as *mut Self as _)?;
-        self.1.set(T::data(value));
+        self.1 = MaybeUninit::new(T::data(value));
 
         Ok(())
     }
@@ -338,7 +338,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     #[inline]
     pub unsafe fn set_unchecked(&mut self, value: *mut T) {
         self.0 = I::sub_unchecked(value as *mut T as _, self as *mut Self as _);
-        self.1.set(T::data(&*value));
+        self.1 = MaybeUninit::new(T::data(&*value));
     }
 
     /**
@@ -356,7 +356,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     unsafe fn as_raw_unchecked_impl(&self) -> *const T {
         nn_to_ptr(T::compose(
             NonNull::new(self.0.add(self as *const Self as *const u8)),
-            self.1.get()
+            self.1.assume_init()
         ))
     }
 
@@ -387,7 +387,7 @@ impl<T: ?Sized + MetaData, I: Delta> RelPtr<T, I> {
     pub unsafe fn as_non_null_unchecked(&mut self) -> NonNull<T> {
         T::compose(
             NonNull::new(self.0.add(self as *mut Self as *mut u8)),
-            self.1.get()
+            self.1.assume_init()
         ).unchecked_unwrap("Tried to use an unset relative pointer, this is UB in release mode!")
     }
 
@@ -423,7 +423,7 @@ macro_rules! as_non_null_impl {
         } else {
             T::compose(
                 NonNull::new($self.0.add($self as *const Self as *const u8)),
-                $self.1.get()
+                $self.1.assume_init()
             )
         }
     };
